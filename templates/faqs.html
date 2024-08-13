@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_filters %}
+
+{% block headers %}
+    <style>
+    .hero-section {
+            background: url('{% static "images/result-repor-bg.jpg" %}') no-repeat center center/cover;
+            background-size: cover;
+            background-position: center;
+            color: #fff;
+            text-align: center;
+            padding: 5rem 0;
+            position: relative;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .hero-section .container {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-section h1 {
+            font-size: 3.5rem;
+            font-weight: bold;
+        }
+
+        .hero-section p {
+            font-size: 1.5rem;
+        }
+    </style>
+
+{% endblock headers %}
+    
+
+{% block content %}
+<div class="content">
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <h1>Frequently Asked Questions</h1>
+            <p>Find answers to common questions about our breast cancer risk assessment tool.</p>
+        </div>
+    </section>
+
+    <section class="search-bar py-5 bg-light">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <div class="input-group-addon">
+                        <i class="fa fa-search"></i>
+                        </div>
+                    <input type="search" id="search-input" class="form-control" placeholder="Search for answers...">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <div class="container">
+        <div class="row my-20">
+            <div class="col-12">
+                <div class="box">
+                    <div class="box-body">
+                        <ul class="nav nav-pills bg-nav-pills nav-justified" id="faq-sections">
+                            <!-- Sections will be loaded here dynamically -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="container">
+                <div class="box">
+                    <div class="box-body">
+                        <div class="tab-content faq-bx" id="faq-contents">
+                            <!-- FAQ contents will be loaded here dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('search-input');
+        function SearchFaqs() {
+            const query = searchInput.value;
+            fetch(`?q=${query}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const sections = document.getElementById('faq-sections');
+                const contents = document.getElementById('faq-contents');
+                
+                sections.innerHTML = '';
+                contents.innerHTML = '';
+
+                data.forEach((section, index) => {
+                    sections.innerHTML += `
+                        <li class="nav-item text-center">
+                            <a href="#navpills-${index}" class="nav-link ${index === 0 ? 'active' : ''}" data-bs-toggle="tab" aria-expanded="${index === 0 ? 'true' : 'false'}">
+                                ${section.heading}
+                            </a>
+                        </li>
+                    `;
+
+                    let questionsHTML = '';
+                    section.questions.forEach((question, qIndex) => {
+                        questionsHTML += `
+                            <div class="panel">
+                                <div class="panel-heading" id="question-${index}-${qIndex}" role="tab">
+                                    <a class="panel-title fs-16 fw-500" aria-controls="answer-${index}-${qIndex}" aria-expanded="${qIndex === 0 ? 'true' : 'false'}" data-bs-toggle="collapse" href="#answer-${index}-${qIndex}" data-parent="#accordion${index}">
+                                        ${question.question}
+                                    </a>
+                                </div>
+                                <div class="panel-collapse collapse ${qIndex === 0 ? 'show' : ''}" id="answer-${index}-${qIndex}" aria-labelledby="question-${index}-${qIndex}" role="tabpanel" data-bs-parent="#category-${index}">
+                                    <div class="panel-body text-fade">
+                                        ${question.answer}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    contents.innerHTML += `
+                        <div id="navpills-${index}" class="tab-pane ${index === 0 ? 'active' : ''}">
+                            <div class="tab-pane animation-fade ${index === 0 ? 'active' : ''}" id="category-${index}" role="tabpanel">
+                                <div class="panel-group panel-group-simple panel-group-continuous" id="accordion${index}" aria-multiselectable="true" role="tablist">
+                                    ${questionsHTML}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+        }
+        searchInput.addEventListener('keyup',SearchFaqs);
+        SearchFaqs()
+    });
+</script>
+{% endblock scripts %}
+    
+    
+    

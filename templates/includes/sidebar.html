@@ -1,0 +1,85 @@
+{% load static %}
+<aside class="main-sidebar">
+  <section class="sidebar position-relative">
+    <div class="multinav">
+      <div class="multinav-scroll" style="height: 97%">
+        <!-- sidebar menu-->
+        <ul class="sidebar-menu" data-widget="tree">
+          <li class="treeview">
+            <a href="javascript:void(0)">
+              <i data-feather="home"></i>
+              <span>Home</span>
+              <span class="pull-right-container">
+                <i class="fa fa-angle-right pull-right"></i>
+              </span>
+            </a>
+            <ul class="treeview-menu">
+              <li>
+                <li><a href="{% url 'home' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Home</a></li>
+                {% if user.is_active %}
+                  <li><a href="{% url 'auth:user_dashboard' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Dashboard</a></li>
+                  </li>	
+              {% endif %}
+            </ul>
+          </li>
+          
+          {% if user.is_active %}
+            <li class="treeview">
+              <a href="javascript:void(0)">
+              <i data-feather="paperclip"></i>
+              <span>Questionnaire</span>
+              <span class="pull-right-container">
+                <i class="fa fa-angle-right pull-right"></i>
+              </span>
+              </a>
+              <ul class="treeview-menu">
+                <li>
+                  <li><a href="{% url 'questionnaire' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Questionnaire</a></li>
+                    <li><a href="{% url 'pending_results' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Pending Results</a></li>
+                  </li>	
+              </ul>
+            </li>
+            <li>
+              <a href="{% url 'result_hostores' %}">
+                <i data-feather="file-text"></i>
+                <span>Results</span>
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'about' %}">
+                <i data-feather="award"></i>
+                <span>About</span>
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'faqs' %}">
+                <i data-feather="tag"></i>
+                <span>FAQs</span>
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'contact' %}">
+                <i data-feather="voicemail"></i>
+                <span>Contact</span>
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+        {% if user.is_active %}
+          <div class="sidebar-widgets">
+            <div class="mx-25 mb-30 pb-20 side-bx bg-primary-light rounded20">
+              <div class="text-center">
+                <img
+                  src="{% static 'images/side-footer.svg' %}"
+                  class="sideimg p-5"
+                  alt=""
+                />
+                <h4 class="title-bx text-primary">QuickDiag</h4>
+              </div>
+            </div>
+          </div> 
+        {% endif %}
+      </div>
+    </div>
+  </section>
+</aside>

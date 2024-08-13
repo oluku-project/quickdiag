@@ -1,0 +1,254 @@
+{% extends 'base.html' %} 
+
+{% load static %}
+{% block content %}
+    <section class="content">
+      <div class="row">
+        <div class="col-12">
+          <!-- hero section -->
+          <div class="row mb-3">
+            <div class="">
+              <div class="d-flex align-items-center">
+                <div class="mx-3">
+                  <h1 class="display-4 mb-4">Predict Breast Cancer Risks</h1>
+                  <p class="lead mb-5">
+                    Empowering you with knowledge to detect breast cancer early
+                    and make informed decisions.
+                  </p>
+
+                  <button onclick="navigateToUrl(this)"
+                    data-url="#start" class="btn btn-xs btn-light">Get Started</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Introduction Section -->
+          <div class="box">
+            <div class="box-body">
+              <div class="d-md-flex justify-content-between align-items-center">
+                <div class="col-lg-8 offset-lg-2">
+                  <h2 class="text-center mb-4">
+                    Welcome to Breast Cancer Prediction
+                  </h2>
+                  <p class="text-center">
+                    At Breast Cancer Prediction, we are committed to empowering you with the knowledge and tools to effectively manage your breast health. Our platform utilizes a scientifically validated questionnaire crafted by leading oncologists and medical experts to evaluate your unique risk factors for breast cancer. By considering elements such as family history, lifestyle choices, and genetic predispositions, we provide a comprehensive assessment of your susceptibility.
+                  </p>
+                  <p class="text-center">
+                    Our mission is to enable you to make informed decisions about your health. Through our intuitive interface and sophisticated algorithms, we deliver personalized insights and recommendations tailored to your specific risk profile. Whether you are looking for early detection strategies or advice on preventive measures, Breast Cancer Prediction is dedicated to supporting you at every stage. Join us in advancing breast health awareness and prevention. Begin your journey today with our extensive questionnaire and take proactive steps towards your well-being.
+                  </p>
+                  <div class="text-center">
+                    <a
+                      target="_blank"
+                      onclick="navigateToUrl(this)"
+                      data-url="https://www.dana-farber.org/cancer-care/types/breast-cancer"
+                      href="javascript:void(0)"
+                      class="waves-effect waves-light btn btn-outline btn-primary"
+                      >Learn More</a
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- How It Works Section -->
+          <div class="box">
+            <div class="box-body">
+              <div class="col-12">
+                <h2 class="text-center mb-4">How It Works</h2>
+                <div class="row">
+                  <div class="col-md-4 mb-4">
+                    <div class="h-200">
+                      <div class="text-center">
+                        <i class="fa fa-file-text fa-3x text-primary mb-3"></i>
+                        <h3>Step 1: Complete the Questionnaire</h3>
+                        <p class="card-text">
+                          Fill out our detailed questionnaire to provide
+                          information about your medical history, lifestyle, and
+                          genetic factors.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4 mb-4">
+                    <div class="h-200">
+                      <div class="text-center">
+                        <i class="fa fa-cogs fa-3x text-primary mb-3"></i>
+                        <h4 class="mt-2">Step 2: Machine Learning Analysis</h4>
+                        <p>
+                          Our platform uses advanced machine learning algorithms
+                          to analyze your data and assess your risk of breast
+                          cancer.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4 mb-4">
+                    <div class="h-200">
+                      <div class="text-center">
+                        <i class="fa fa-line-chart fa-3x text-primary mb-3"></i>
+                        <h4 class="mt-2">Step 3: Review Your Results</h4>
+                        <p>
+                          Receive personalized insights and recommendations
+                          based on the analysis. Take proactive steps towards
+                          your health.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Features Section -->
+          <div class="box">
+            <div class="box-body">
+              <div class="d-md-flex justify-content-between align-items-center">
+                <div class="col">
+                  <h2 class="display-5">Our Features</h2>
+                  <p class="lead">
+                    Explore the powerful features we offer for early detection
+                    and prevention.
+                  </p>
+                </div>
+              </div>
+
+              <hr />
+
+              <div class="row">
+                  <div class="col-md-4 p-10">
+                    <div class="mb-3">
+                      <i class="fa fa-stethoscope fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="mb-0">Comprehensive Questionnaire</h5>
+                    <p class="mb-0 text-fade">
+                      A detailed questionnaire to assess your risk factors with
+                      precision.
+                    </p>
+                  </div>
+                  <div class="col-md-4 p-10">
+                    <div class="mb-3">
+                      <i class="fa fa-line-chart fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="mb-0 text-success">Real-Time Analysis</h5>
+                    <p class="mb-0 text-fade">
+                      Instant analysis of your responses to provide immediate
+                      feedback.
+                    </p>
+                  </div>
+
+                  <div class="col-md-4 p-10">
+                    <div class="mb-3">
+                      <i class="fa fa-shield fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="mb-0">Privacy Protection</h5>
+                    <p class="mb-0 text-fade">
+                      Your data is secure and confidential, with top-notch
+                      privacy protection.
+                    </p>
+                  </div>
+              </div>
+            </div>
+          </div>
+          <!-- Resorces Section -->
+          <div class="box">
+            <div class="box-body">
+              <div class="row">
+                <div class="col">
+                  <h2 class="display-5">Resources</h2>
+                  <p class="lead">
+                    Explore our curated resources to learn more about breast
+                    cancer prevention and support.
+                  </p>
+                </div>
+              </div>
+
+              <hr />
+
+              <div class="row">
+                  <div class="col-md-4 mb-4">
+                    <div class="mb-3">
+                      <i class="fa fa-book fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="mb-0 text-success">Educational Articles</h5>
+                    <p class="mb-0 text-fade">
+                      In-depth articles on breast cancer prevention, diagnosis,
+                      and treatment.
+                    </p>
+                    <a
+                      onclick="navigateToUrl(this,true)"
+                      data-url="{% static 'assets/files/educational-article.pdf' %}"
+                      class="waves-effect waves-light btn btn-outline btn-primary"
+                      >Read More</a
+                    >
+                  </div>
+                  <div class="col-md-4 mb-4">
+                    <div class="mb-3">
+                      <i class="fa fa-video-camera fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="mb-0 text-fade">Video Tutorials</h5>
+                    <p class="mb-0 text-fade">
+                      Watch video tutorials and expert talks to better
+                      understand breast cancer.
+                    </p>
+                    <a
+                      onclick="navigateToUrl(this)"
+                      data-url="https://www.youtube.com/watch?v=ooDu-UbqUGs"
+                      href="javascript:void(0)"
+                      class="waves-effect waves-light btn btn-outline btn-primary"
+                      >Watch Now</a
+                    >
+                  </div>
+
+                  <div class="col-md-4 mb-4">
+                    <div class="mb-3">
+                      <i class="fa fa-heartbeat fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="mb-0">Support Groups</h5>
+                    <p class="mb-0 text-fade">
+                      Join support groups to connect with others and share your
+                      experiences.
+                    </p>
+                    <a
+                      onclick="navigateToUrl(this)"
+                      data-url="https://www.nationalbreastcancer.org/breast-cancer-support-groups/"
+                      href="javascript:void(0)"
+                      class="waves-effect waves-light btn btn-outline btn-primary"
+                      >Join Now</a
+                    >
+                  </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Start question -->
+        <div id="start" class="col-xl-6 col-12 my-50">
+          
+          <div class="mb-20 ">
+            <button
+              onclick="navigateToUrl(this)"
+              data-url="
+              {% if user.is_active %} {% url 'questionnaire' %} {% else %} {% url 'auth:login' %} {% endif %}
+                "
+              class="waves-effect waves-light btn p-20 btn-success pull-up"
+              >
+               <i class="fa fa-stethoscope fa-3x"></i> Start Questionnaire
+            </button>
+          </div>
+          <div class="box ">
+            <div class="box-header ">
+              <h3 class="box-title">
+                Take the First Step Towards Early Detection
+              </h3>
+              <p class="mb-0 lead mb-10">
+                Early detection saves lives. Start our questionnaire to
+                assess your breast cancer risk now.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+{% endblock content %}
+
