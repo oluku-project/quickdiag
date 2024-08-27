@@ -11,6 +11,7 @@ from django.contrib.auth.models import (
 from django.db.models.functions import Now, Concat
 from django.utils.translation import gettext_lazy as _
 import pycountry
+from datetime import date
 
 
 class MyAccountManager(BaseUserManager):
@@ -112,13 +113,6 @@ class Account(AbstractBaseUser):
     groups = models.ManyToManyField(Group, blank=True)
     user_permissions = models.ManyToManyField(Permission, blank=True)
 
-    def sendMail(self):
-        mail_temp = "accounts/account_verification_email.html"
-        mail_subject = "Activate Your Account"
-        self.compose_email(
-            self.request, self, mail_subject=mail_subject, mail_temp=mail_temp
-        )
-
     def save(self, *args, **kwargs):
         if not self.usid:
             alphanumeric = string.ascii_uppercase + string.digits
@@ -127,8 +121,31 @@ class Account(AbstractBaseUser):
             self.usid = usid.capitalize()
         super(Account, self).save(*args, **kwargs)
 
+    @property
+    def country_name(self):
+        try:
+            return pycountry.countries.get(alpha_2=self.country).name
+        except KeyError:
+            return "Unknown Country"
+
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
+
+    @property
+    def age(self):
+        try:
+            today = date.today()
+            age = (
+                today.year
+                - self.date_of_birth.year
+                - (
+                    (today.month, today.day)
+                    < (self.date_of_birth.month, self.date_of_birth.day)
+                )
+            )
+        except:
+            return 0
+        return age
 
     def __str__(self):
         return self.email
