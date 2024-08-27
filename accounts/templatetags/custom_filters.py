@@ -52,3 +52,24 @@ def calculate_age(date_of_birth):
 def ternary(value, arg):
     arg1, arg2 = arg.split(",")
     return arg1 if value else arg2
+
+
+@register.filter(name="add_class")
+def add_class(field, css):
+    """
+    Add a CSS class to the given form field.
+    """
+    return field.as_widget(attrs={"class": css})
+
+
+@register.filter
+def conditional(value, arg):
+    conditions = arg.split("|")
+    for condition in conditions:
+        try:
+            cond, result = condition.split(":")
+            if eval(cond):
+                return result
+        except ValueError:
+            continue
+    return ""
