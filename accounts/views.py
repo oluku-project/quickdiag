@@ -28,6 +28,19 @@ class UserRegistrationView(MailUtils, CreateView):
     template_name = "accounts/register.html"
     success_url = reverse_lazy("auth:login")
 
+    def dispatch(self, request, *args, **kwargs):
+        # Check if registration is allowed
+        if not request.allow_registration:
+            messages.info(
+                request,
+                _(
+                    "We're sorry, but new registrations are currently not allowed. Please check back later or contact support for more information."
+                ),
+            )
+
+            return redirect("auth:login")
+        return super().dispatch(request, *args, **kwargs)
+
     def form_valid(self, form):
         user = form.save(commit=False)
         user.is_active = False
