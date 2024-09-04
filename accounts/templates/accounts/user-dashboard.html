@@ -137,21 +137,23 @@
             </div>
           </div>
           <div class="d-md-flex justify-content-between align-items-center">
+            
+            {% if not user.is_staff %}
+              <a onclick="navigateToUrl(this)"
+              data-url="{% url 'questionnaire' %}"
+              href="javascript:void(0);" 
+              class="waves-effect waves-light btn btn-primary m-10 p-20">
+                Take Questionnaire
+              </a>
+            {% endif %}
             <a onclick="navigateToUrl(this)"
-                  data-url="{% url 'questionnaire' %}"
-                  href="javascript:void(0);" 
-                  class="waves-effect waves-light btn btn-primary m-10 p-20"
-              >Take New Questionnaire</a
-            >
-            <a onclick="navigateToUrl(this)"
-                  data-url="{% url 'result_hostores' %}"
+                  data-url="{% if user.is_staff %}{% url 'AdminHub:result_hostores' %}{% else %}{% url 'result_hostores' %}{% endif %}"
                   href="javascript:void(0);"  class="waves-effect waves-light btn btn-danger m-10 p-20"
-              >View Detailed Results</a
-            >
+              >View Results</a>
             <a onclick="navigateToUrl(this)"
                   data-url="{% url 'auth:profile' %}"
                   href="javascript:void(0);" class="waves-effect waves-light btn btn-info m-10 p-20">
-              Update Personal Information
+              Update Account
             </a>
           </div>
         </div>
