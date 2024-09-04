@@ -98,7 +98,6 @@ class TrainedModel(models.Model):
         self.is_default = True
         self.save()
 
-
     def save(self, *args, **kwargs):
         """
         Custom save logic: Ensures only one model is set to default at a time.
