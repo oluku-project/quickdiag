@@ -1,4 +1,6 @@
-from .models import GeneralSettings  # Assuming you have a GeneralSettings model
+from accounts.templatetags.custom_filters import calculate_age
+from patients.models import Feedback
+from .models import GeneralSettings
 
 
 def general_settings(request):
@@ -30,3 +32,40 @@ def general_settings(request):
         }
     except GeneralSettings.DoesNotExist:
         return data
+
+
+def feedback_testimonials(request):
+    feedbacks = Feedback.objects.filter(show=True).order_by("-submitted_at")[:3]
+    if feedbacks.exists():
+        testimonials = []
+        for feedback in feedbacks:
+            obj = feedback.result
+            testimonial = {
+                "name": obj.user.full_name(),
+                "message": feedback.message,
+                "age": calculate_age(obj.dob),
+                "risk_level": obj.risk_level,
+            }
+            testimonials.append(testimonial)
+    else:
+        testimonials = [
+            {
+                "name": "Mary Johnson",
+                "message": "After taking the assessment, I followed the recommended screenings and caught my cancer early. The early detection saved my life.",
+                "age": 45,
+                "risk_level": "High",
+            },
+            {
+                "name": "Linda Smith",
+                "message": "The personalized advice helped me understand my risk factors and take proactive steps to improve my health.",
+                "age": 38,
+                "risk_level": "Medium",
+            },
+            {
+                "name": "Jane Doe",
+                "message": "I found the resources and support links extremely helpful. It gave me the confidence to get the necessary screenings.",
+                "age": 50,
+                "risk_level": "Low",
+            },
+        ]
+    return {"testimonials": testimonials}
