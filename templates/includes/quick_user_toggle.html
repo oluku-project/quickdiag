@@ -53,10 +53,10 @@
                             <div class="d-flex flex-column fw-500">
                                 <a 
                                     onclick="navigateToUrl(this)"
-                                        data-url=""
+                                        data-url="{% url 'AdminHub:system_settings' %}"
                                         href="javascript:void(0);"
                                 class="text-dark hover-primary mb-1 fs-16">Settings</a>
-                                <span class="text-fade">Manage Users</span>
+                                <span class="text-fade">System Settings</span>
                             </div>
                         </div>
                     {% endif %}
