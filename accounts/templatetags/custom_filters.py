@@ -1,5 +1,6 @@
 from datetime import date
 from django import template
+from django.urls import reverse
 
 register = template.Library()
 
@@ -52,6 +53,16 @@ def calculate_age(date_of_birth):
 def ternary(value, arg):
     arg1, arg2 = arg.split(",")
     return arg1 if value else arg2
+
+
+@register.simple_tag(takes_context=True)
+def active_link_exclude_home(context, url_name):
+    request = context["request"]
+    url = reverse(url_name)
+
+    if url_name == "home" and request.path != "/":
+        return ""
+    return "active" if request.path.startswith(url) else ""
 
 
 @register.filter(name="add_class")
