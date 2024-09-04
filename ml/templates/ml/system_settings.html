@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="content">
+<div class="container mt-5 mb-100">
+    <h1 class="mb-4">System Settings</h1>
+    <form id="settings-form" method="post" novalidate>
+        {% csrf_token %}
+        <div class="row g-4">
+            <!-- Email Settings -->
+            <div class="col-12">
+                <div class="box border-primary shadow-sm">
+                    <div class="box-header bg-primary ">
+                        <h5 class="mb-0">Email Settings</h5>
+                    </div>
+                    <div class="box-body">
+                        <div class="row">
+                        {% for f in email_form %}
+                            <div class="col-md-4 col-12 mb-3">
+                                {% if f.field.widget.input_type == 'checkbox' %}
+                                    <div class="form-check m-3">
+                                        <input type="checkbox" class="form-check-input" id="{{ f.id_for_label }}" name="{{ f.name }}" {% if f.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+                                    </div>
+                                {% else %}
+                                {{ f.as_field_group }}
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+
+            <!-- General Settings -->
+            <div class="col-12">
+                <div class="box border-primary shadow-sm">
+                    <div class="box-header bg-primary">
+                        <h5 class="mb-0">General Settings</h5>
+                    </div>
+                    <div class="box-body">
+                        <div class="row">
+                            {% for f in general_form %}
+                                {% if f.field.widget.input_type == 'checkbox' %}
+                                <div class="col-md-6 col-12">
+                                    <div class="form-check mb-3">
+                                        <input type="checkbox" class="form-check-input" id="{{ f.id_for_label }}" name="{{ f.name }}" {% if f.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+                                    </div>
+                                </div>
+                                {% elif f.name in "site_description,maintenance_message" %}
+                                    <div class="col-12 my-3">
+                                        {{ f.as_field_group }}
+                                    </div>
+                                {% else %}
+                                
+                                <div class="col-md-6 col-12 mb-3">
+                                    {{ f.as_field_group }}
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                      
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-primary btn-lg">Save Settings</button>
+        </div>
+    </form>
+</div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+    
+    
+<script>
+document.getElementById('settings-form').addEventListener('submit', function(event) {
+    event.preventDefault();
+    var form = event.target;
+    var formData = new FormData(form);
+
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Success', data.message, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 3500);
+        } else {
+            for (var form in data.errors) {
+                var errors = data.errors[form];
+                for (var field in errors) {
+                     showToast('Error', errors[field].join("\n"), 'error');
+                }
+            }
+        }
+    })
+    .catch(error => console.error('Error:', error));
+});
+</script>
+{% endblock %}
