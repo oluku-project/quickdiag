@@ -7,10 +7,13 @@
     </div>
     <!-- User Feedback and Rating Section -->
     <div class="row">
-        <div class="col-md-6 mb-4">
-            {% include 'patients/includes/feed-back.html' %}
-        </div>
-        <div class="col-md-6 mb-4">
+        
+        {% if not user.is_staff %}
+            <div class="col-md-6 mb-4">
+                {% include 'patients/includes/feed-back.html' %}
+            </div>
+        {% endif %}
+        <div class="{% if not user.is_staff %}col-md-6 mb-4{% else %}col-md-12 mb-4{% endif %}">
             {% include 'patients/includes/contact-form.html' %}
         </div>
     </div>
