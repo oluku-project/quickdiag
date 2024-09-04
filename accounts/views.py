@@ -9,6 +9,7 @@ from django.views.generic import CreateView, View, FormView, TemplateView
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
+import requests
 from PaulVideoPlatform.utils import PASSWORD_VALIDITY, MailUtils
 from accounts.mixins import ActiveUserRequiredMixin
 from ml.utils import log_user_activity
@@ -146,14 +147,19 @@ class LoginView(FormView):
             username = form.cleaned_data.get("username")
             password = form.cleaned_data.get("password")
             user = auth.authenticate(email=username, password=password)
+            nextPath = self.get_NextPath()
+
             if user is not None:
                 auth.login(self.request, user)
                 log_user_activity(self.request, user, "User logged in successfully")
                 messages.success(self.request, _("You are now logged in."))
-                if user.is_staff:
-                    return self.redirect_to_staff_dashboard()
+                if nextPath:
+                    return redirect(nextPath)
                 else:
-                    return self.redirect_to_user_dashboard()
+                    if user.is_staff:
+                        return self.redirect_to_staff_dashboard()
+                    else:
+                        return self.redirect_to_user_dashboard()
             else:
                 log_user_activity(
                     self.request,
@@ -168,6 +174,21 @@ class LoginView(FormView):
                 self.request, _("An error occurred during login. Please try again.")
             )
             return self.form_invalid(form)
+
+    def get_NextPath(self):
+        next_url = None
+        nextPage = self.request.META.get("HTTP_REFERER")
+        try:
+            query = requests.utils.urlparse(nextPage).query
+            params = dict(
+                x.split("=") for x in query.split("&") if len(x.split("=")) == 2
+            )
+            if "next" in params:
+                next_url = params["next"]
+        except ValueError as e:
+            next_url = None
+
+        return next_url
 
     def form_invalid(self, form):
         try:
