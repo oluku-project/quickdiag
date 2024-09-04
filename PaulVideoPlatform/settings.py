@@ -8,7 +8,7 @@ env = environ.Env(
     DEBUG=(bool, False),
 )
 BASE_DIR = Path(__file__).resolve().parent.parent
-env.read_env(str(BASE_DIR / ".env"))
+env.read_env(str(BASE_DIR / "env" / ".env"))
 
 
 LOG_DIR = BASE_DIR / "logs"
@@ -114,7 +114,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-SESSION_COOKIE_AGE = 800
+SESSION_COOKIE_AGE = 1800
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_SAVE_EVERY_REQUEST = True
 
