@@ -1,6 +1,7 @@
 from django import forms
 from patients.models import Contact, Feedback
 
+
 class QuestionnaireForm(forms.Form):
     questions = [
         ("Do you experience a lump in the breast?", "radius_mean", 17.99),
@@ -127,10 +128,10 @@ class QuestionnaireForm(forms.Form):
 class FeedbackForm(forms.ModelForm):
     class Meta:
         model = Feedback
-        fields = ["message", "rating"]
+        fields = ["message", "rating", "result"]
 
 
 class ContactForm(forms.ModelForm):
     class Meta:
         model = Contact
-        fields = ["name", "email","subject", "message"]
+        fields = ["name", "email", "subject", "message"]
