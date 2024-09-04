@@ -1,72 +1,288 @@
 {% load static %}
-<aside class="main-sidebar">
-  <section class="sidebar position-relative">
-    <div class="multinav">
-      <div class="multinav-scroll" style="height: 97%">
-        <!-- sidebar menu-->
-        <ul class="sidebar-menu" data-widget="tree">
-          <li class="treeview">
-            <a href="javascript:void(0)">
-              <i data-feather="home"></i>
-              <span>Home</span>
-              <span class="pull-right-container">
-                <i class="fa fa-angle-right pull-right"></i>
-              </span>
-            </a>
-            <ul class="treeview-menu">
-              <li>
-                <li><a href="{% url 'home' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Home</a></li>
-                {% if user.is_active %}
-                  <li><a href="{% url 'auth:user_dashboard' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Dashboard</a></li>
-                  </li>	
-              {% endif %}
-            </ul>
-          </li>
-          
-          {% if user.is_active %}
-            <li class="treeview">
+{% load active_link_tags %}
+{% load custom_filters %} 
+
+{% with app1='AdminHub' app2='auth' %}
+
+  <aside class="main-sidebar">
+    <section class="sidebar position-relative">
+      <div class="multinav">
+        <div class="multinav-scroll" style="height: 97%">
+          <!-- sidebar menu-->
+          <ul class="sidebar-menu" data-widget="tree">
+            <li class="treeview {% active_link_exclude_home 'home' %}  {% active_link app1|add:':dashboard ||'|add:app1|add:':user_dashboard ||'|add:app1|add:':data_visualization' %}">
               <a href="javascript:void(0)">
-              <i data-feather="paperclip"></i>
-              <span>Questionnaire</span>
-              <span class="pull-right-container">
-                <i class="fa fa-angle-right pull-right"></i>
-              </span>
+                <i data-feather="home"></i>
+                <span>Home</span>
+                <span class="pull-right-container">
+                  <i class="fa fa-angle-right pull-right"></i>
+                </span>
               </a>
               <ul class="treeview-menu">
                 <li>
-                  <li><a href="{% url 'questionnaire' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Questionnaire</a></li>
-                    <li><a href="{% url 'pending_results' %}"><i class="icon-Commit"><span class="path1"></span><span class="path2"></span></i>Pending Results</a></li>
-                  </li>	
+                  <li class="{% active_link_exclude_home 'home' %}">
+                    <a href="{% url 'home' %}" >
+                      <i class="icon-Commit">
+                        <span class="path1"></span><span class="path2"></span>
+                      </i>Home
+                    </a>
+                  </li>
+                  {% if user.is_active %}
+                  
+                    {% if user.is_staff %}
+                      <li class="{% active_link app1|add:':dashboard' %}">
+                        <a href="{% url app1|add:':dashboard' %}" >
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>AdminHub
+                        </a>
+                      </li>
+                      <li class="{% active_link app1|add:':user_dashboard' %}">
+                        <a href="{% url app1|add:':user_dashboard' %}" >
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>User Dashboard
+                        </a>
+                      </li>
+                      <li class="{% active_link app1|add:':data_visualization' %}">
+                        <a href="{% url app1|add:':data_visualization' %}" >
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Data Visualization
+                        </a>
+                      </li>
+                      {% else %}
+                        <li class="{% active_link app2|add:':user_dashboard' %}">
+                        <a href="{% url app2|add:':user_dashboard' %}" >
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>User Dashboard
+                        </a>
+                      </li>
+                    {% endif %}
+                  {% endif %}
+                </li>	
               </ul>
             </li>
-            <li>
-              <a href="{% url 'result_hostores' %}">
-                <i data-feather="file-text"></i>
-                <span>Results</span>
-              </a>
-            </li>
-            <li>
-              <a href="{% url 'about' %}">
-                <i data-feather="award"></i>
-                <span>About</span>
-              </a>
-            </li>
-            <li>
-              <a href="{% url 'faqs' %}">
-                <i data-feather="tag"></i>
-                <span>FAQs</span>
-              </a>
-            </li>
-            <li>
-              <a href="{% url 'contact' %}">
-                <i data-feather="voicemail"></i>
-                <span>Contact</span>
-              </a>
-            </li>
+            
+            {% if user.is_active %}
+              
+              {% if user.is_staff %}
+                <li class="treeview {% active_link app1|add:':result_hostores' %} 
+                  {% if request.resolver_match.url_name == 'summary' or request.resolver_match.url_name == 'detailed_result' %}
+                    active
+                  {% endif %}
+                  ">
+                  <a href="javascript:void(0)">
+                    <i data-feather="database"></i>
+                    <span>Record Management</span>
+                    <span class="pull-right-container">
+                      <i class="fa fa-angle-right pull-right"></i>
+                    </span>
+                  </a>
+                  <ul class="treeview-menu">
+                    <li>
+                      <li class="{% active_link app1|add:':record_management' %}">
+                        <a href="{% url app1|add:':record_management' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Results
+                        </a>
+                      </li>
+                      <li class="{% active_link app1|add:':result_hostores' %}">
+                        <a href="{% url app1|add:':result_hostores' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>My Results
+                        </a>
+                      </li>
+                    </li>	
+                  </ul>
+                </li>
+                <li class="treeview {% active_link app1|add:':user-list' %}">
+                  <a href="javascript:void(0)">
+                    <i data-feather="users"></i>
+                    <span> User Management</span>
+                    <span class="pull-right-container">
+                      <i class="fa fa-angle-right pull-right"></i>
+                    </span>
+                  </a>
+                  <ul class="treeview-menu">
+                    <li>
+                      <li class="{% active_link app1|add:':user-list' %}">
+                        <a href="{% url app1|add:':user-list' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>User List
+                        </a>
+                      </li>
+                    </li>	
+                  </ul>
+                </li>
+                <li class="treeview {% active_link app1|add:':contact_list' %}">
+                  <a href="javascript:void(0)">
+                    <i data-feather="phone"></i>
+                    <span>Contact Management</span>
+                    <span class="pull-right-container" class="feather-icon">
+                      <i class="fa fa-angle-right pull-right"></i>
+                    </span>
+                  </a>
+                  <ul class="treeview-menu">
+                    <li>
+                      <li class="{% active_link app1|add:':contact_list' %}">
+                        <a href="{% url app1|add:':contact_list' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Contact List
+                        </a>
+                      </li>
+                    </li>	
+                  </ul>
+                </li>
+                <li class="treeview {% active_link app1|add:':logs  ||'|add:app1|add:':testimonial_list' %}">
+                  <a href="javascript:void(0)">
+                    <i data-feather="file-text"  class="feather-icon"></i>
+                    <span>Logs Management</span>
+                    <span class="pull-right-container">
+                      <i class="fa fa-angle-right pull-right"></i>
+                    </span>
+                  </a>
+                  <ul class="treeview-menu">
+                    <li>
+                      <li class="{% active_link app1|add:':logs' %}">
+                        <a href="{% url app1|add:':logs' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Activity Logs
+                        </a>
+                      </li>
+                      <li class="{% active_link app1|add:':testimonial_list' %}">
+                        <a href="{% url app1|add:':testimonial_list' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Testimonials
+                        </a>
+                      </li>
+                    </li>	
+                  </ul>
+                </li>
+                <li class="treeview {% active_link app1|add:':model_list ||'|add:app1|add:':measurement ||'|add:app1|add:':feature' %}">
+                  <a href="javascript:void(0)">
+                    <i data-feather="activity"  class="feather-icon"></i>
+                    <span>Prediction & Models</span>
+                    <span class="pull-right-container">
+                      <i class="fa fa-angle-right pull-right"></i>
+                    </span>
+                  </a>
+                  <ul class="treeview-menu">
+                    <li>
+                      <li class="{% active_link app1|add:':measurement' %}">
+                        <a href="{% url app1|add:':measurement' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Make Prediction
+                        </a>
+                      </li>
+                      <li class="{% active_link app1|add:':feature' %}">
+                        <a href="{% url app1|add:':feature' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Feature Explanation
+                        </a>
+                      </li>
+                      <li class="{% active_link app1|add:':model_list' %}">
+                        <a href="{% url app1|add:':model_list' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Model List
+                        </a>
+                      </li>
+                    </li>	
+                  </ul>
+                </li>
+              {% else %} 
+                <li class="treeview {% active_link 'questionnaire || pending_results' %}
+                {% if request.resolver_match.url_name == 'summary' %}
+                  active
+                {% endif %}
+                ">
+                  <a href="javascript:void(0)">
+                    <i data-feather="paperclip"></i>
+                    <span>Questionnaire</span>
+                    <span class="pull-right-container">
+                      <i class="fa fa-angle-right pull-right"></i>
+                    </span>
+                  </a>
+                  <ul class="treeview-menu">
+                    <li>
+                      <li class="{% active_link 'questionnaire' %}">
+                        <a href="{% url 'questionnaire' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                          </i>Questionnaire
+                        </a>
+                      </li>
+                      <li class="{% active_link 'pending_results' %}">
+                        <a href="{% url 'pending_results' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                          </i>Pending Results
+                        </a>
+                      </li>
+                    </li>	
+                  </ul>
+                </li>
+                <li class="treeview {% active_link 'result_hostores' %} 
+                  {% if request.resolver_match.url_name == 'detailed_result' %}
+                    active
+                  {% endif %}
+                  ">
+                  <a href="javascript:void(0)">
+                    <i data-feather="database"></i>
+                    <span>Record Management</span>
+                    <span class="pull-right-container">
+                      <i class="fa fa-angle-right pull-right"></i>
+                    </span>
+                  </a>
+                  <ul class="treeview-menu">
+                    <li>
+                      <li class="{% active_link 'result_hostores' %}">
+                        <a href="{% url 'result_hostores' %}">
+                          <i class="icon-Commit">
+                            <span class="path1"></span><span class="path2"></span>
+                          </i>Results
+                        </a>
+                      </li>
+                    </li>	
+                  </ul>
+                </li>
+              {% endif %}
           {% endif %}
-        </ul>
-        {% if user.is_active %}
-          <div class="sidebar-widgets">
+            {% if not user.is_staff %}
+              <li class="{% active_link 'about' %}">
+                <a href="{% url 'about' %}">
+                  <i data-feather="award"></i>
+                  <span>About</span>
+                </a>
+              </li>
+              <li class="{% active_link 'faqs' %}">
+                <a href="{% url 'faqs' %}">
+                  <i data-feather="tag"></i>
+                  <span>FAQs</span>
+                </a>
+              </li>
+              <li class="{% active_link 'contact' %}">
+                <a href="{% url 'contact' %}">
+                  <i data-feather="voicemail"></i>
+                  <span>Contact</span>
+                </a>
+              </li>
+            {% endif %}
+
+          </ul>
+          <div class="sidebar-widgets" onclick="navigateToUrl(this)" data-url="{% url 'home' %}">
             <div class="mx-25 mb-30 pb-20 side-bx bg-primary-light rounded20">
               <div class="text-center">
                 <img
@@ -74,12 +290,14 @@
                   class="sideimg p-5"
                   alt=""
                 />
-                <h4 class="title-bx text-primary">QuickDiag</h4>
+                <h4 class="title-bx text-primary">
+                    QuickDiag
+                </h4>
               </div>
             </div>
           </div> 
-        {% endif %}
+        </div>
       </div>
-    </div>
-  </section>
-</aside>
+    </section>
+  </aside>
+{% endwith %}
