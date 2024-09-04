@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary"><i class="ti  ti-clipboard"></i> Log List</h2>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary">
+            <i class="fa fa-filter"></i> 
+            <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="true">
+                            Filter Log
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{% url 'AdminHub:logs' %}" id="filterForm" class="collapse">
+                <!-- Include filter fields here -->
+                 <div class="row">
+                    {% for field in filter.form %}
+                        <div class="form-group col-md-3">
+                            {{field.as_field_group}}
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="col-md-12 text-center mt-3">
+                    <label>&nbsp;</label>
+                    <button onclick="clearFilters('filterForm')"class="btn btn-warning btn-block pr-40"><i class="fa fa-fw fa-rotate-left"></i> Reset</button>
+                    <button type="submit" class="btn btn-primary btn-block"><i class="fa fa-search"></i> Search</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Contact List Table -->
+    <div class="card">
+        <div class="card-body">
+            <form id="delete-form" method="POST" action="{% url 'AdminHub:delete_logs' %}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"> </h5>
+                    <button type="button" id="delete-selected" class="btn btn-danger" 
+                    data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                    >
+                        <i class="fa fa-trash"></i> Delete Selected
+                    </button>
+                </div>
+                {% csrf_token %}
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>
+                                    <div class="form-check" >
+                                        <input type="checkbox" id="check_all" class="form-check-input checkAll">
+                                        <label for="check_all" class="form-check-label">#</label>
+                                    </div>
+                                </th>
+                                <th scope="col">User</th>
+                                <th scope="col">Action</th>
+                                <th scope="col">Timestamp</th>
+                                <th scope="col">IP Address</th>
+                                <th scope="col">User Agent</th>
+                                <th scope="col" class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td scope="row">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" name="selected_items"
+                                            value="{{log.id}}" id="check_{{log.id}}">
+                                        <label for="check_{{log.id}}" class="form-check-label"> 
+                                            {{ forloop.counter|stringformat:"02d" }}
+                                        </label>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if log.user %}{{log.user.email}}
+                                    {% else %}Anonymous{% endif %}
+                                </td>
+                                <td>{{ log.action|truncatechars:20|default:"N/A" }}</td>
+                                <td>{{ log.timestamp|date:"Y-m-d" }} <strong class="text-primary">{{ log.timestamp|date:"H:i:s" }} </strong></td>
+                                <td>{{ log.ip_address|default:"N/A" }}</td>
+                                <td>{{ log.user_agent|truncatechars:15|default:"N/A" }}</td>
+                                <td class="text-center">
+                                    <button 
+                                    type="button" class="btn btn-info btn-sm view-details-btn" data-log-id="{{ log.id }}">
+                                    <i class="fa fa-info"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center">No contact available.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% if logs %}
+        <p class="mt-40 fs-5">
+            Total logs found: {{ logs|length }}
+        </p>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% include 'includes/pagenator.html' %}
+    <!-- Modal -->
+    {% include 'ml/includes/logs_modal.html' %}
+        
+</div>
+
+{% endblock %}
+{% block scripts %}
+    {% include 'ml/includes/logs_script.html' %}
+{% endblock scripts %}
