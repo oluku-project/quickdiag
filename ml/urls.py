@@ -17,18 +17,24 @@ from .views import (
     RecordManagementView,
     SendActivationEmailView,
     SystemSettingsView,
+    TestimonialDeleteView,
+    TestimonialDetailView,
+    TestimonialListView,
+    ToggleFeedbackShowView,
     TrainedModelDetailView,
     TrainedModelListView,
     UserDeleteView,
     UserManagementView,
     PredictionView,
 )
-from patients.views import results, summary_view
+from accounts.views import userdashboardview
+from patients.views import results, summary_view, result_hostores
 
 app_name = "AdminHub"
 
 urlpatterns = [
-    path("dasboard/", DashboardView.as_view(), name="dasboard"),
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("user/dashboard", userdashboardview, name="user_dashboard"),
     path(
         "visualization/",
         DataVisualizationView.as_view(),
@@ -37,6 +43,7 @@ urlpatterns = [
     path(
         "record-management/", RecordManagementView.as_view(), name="record_management"
     ),
+    path("result-hostores/", result_hostores, name="result_hostores"),
     path("detailed/result/<pk>/", results, name="detailed_result"),
     path("summary/<pk>/", summary_view, name="summary"),
     path("users/", UserManagementView.as_view(), name="user-list"),
@@ -69,6 +76,22 @@ urlpatterns = [
         "report/<prediction_id>/", GenerateReportView.as_view(), name="generate_report"
     ),
     path("feature/", FeatureExplanationView.as_view(), name="feature"),
+    path("testimonial/list/", TestimonialListView.as_view(), name="testimonial_list"),
+    path(
+        "delete-testimonial/",
+        TestimonialDeleteView.as_view(),
+        name="delete_testimonial",
+    ),
+    path(
+        "testimonial-detail/<int:pk>/",
+        TestimonialDetailView.as_view(),
+        name="testimonial_detail",
+    ),
+    path(
+        "feedback/<int:pk>/toggle-show/",
+        ToggleFeedbackShowView.as_view(),
+        name="toggle-feedback-show",
+    ),
     path("model/", TrainedModelListView.as_view(), name="model_list"),
     path(
         "model-detail/<str:pk>/", TrainedModelDetailView.as_view(), name="model_detail"
