@@ -1000,7 +1000,8 @@ from reportlab.platypus import (
 import plotly.graph_objects as go
 
 
-class GenerateReportView(HelpResponse, View):
+class GenerateReportView(ActiveUserRequiredMixin, HelpResponse, View):
+    require_staff = True
     chart_keys = {"mean": "mean", "worst": "worst", "standard_error": "se"}
 
     def get_data(self):
@@ -1020,6 +1021,15 @@ class GenerateReportView(HelpResponse, View):
             progress = response_instance.questionnaire_response.progress
             created_by = response_instance.questionnaire_response.created_by
             chart_data = response_instance.chart_data
+            log_user_activity(
+                self.request,
+                self.request.user,
+                f"Generated report for Prediction ID {prediction_id}",
+            )
+            logger.info(
+                f"User {self.request.user.username} generated a report for Prediction ID {prediction_id}."
+            )
+
             features = []
             chart_keys = self.chart_keys
             for category in self.categories:
@@ -1041,6 +1051,7 @@ class GenerateReportView(HelpResponse, View):
                 )
 
         except PredictionResult.DoesNotExist:
+            logger.error("PredictionResult not found.")
             raise Http404("Prediction result not found.")
 
         return {
@@ -1153,228 +1164,244 @@ class GenerateReportView(HelpResponse, View):
         return chart_base64
 
     def generate_pdf(self):
-        data = self.get_data()
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        elements = []
-        styles = getSampleStyleSheet()
+        try:
 
-        custom_styles = {
-            "title": ParagraphStyle("Title", fontSize=24, spaceAfter=20, alignment=1),
-            "heading": ParagraphStyle(
-                "Heading", fontSize=16, spaceAfter=15, alignment=1
-            ),
-            "body": ParagraphStyle(
-                "Body",
-                fontSize=12,
-                spaceAfter=12,
-            ),
-            "footer": ParagraphStyle("Title", fontSize=18, spaceAfter=20),
-        }
+            data = self.get_data()
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter)
+            elements = []
+            styles = getSampleStyleSheet()
 
-        elements.append(
-            Paragraph("Breast Cancer Prediction Report", custom_styles["title"])
-        )
-        elements.append(
-            Paragraph(
-                "Date: {}".format(data["date_of_prediction"]),
-                custom_styles["heading"],
+            custom_styles = {
+                "title": ParagraphStyle(
+                    "Title", fontSize=24, spaceAfter=20, alignment=1
+                ),
+                "heading": ParagraphStyle(
+                    "Heading", fontSize=16, spaceAfter=15, alignment=1
+                ),
+                "body": ParagraphStyle(
+                    "Body",
+                    fontSize=12,
+                    spaceAfter=12,
+                ),
+                "footer": ParagraphStyle("Title", fontSize=18, spaceAfter=20),
+            }
+
+            elements.append(
+                Paragraph("Breast Cancer Prediction Report", custom_styles["title"])
             )
-        )
-        elements.append(Spacer(1, 30))
+            elements.append(
+                Paragraph(
+                    "Date: {}".format(data["date_of_prediction"]),
+                    custom_styles["heading"],
+                )
+            )
+            elements.append(Spacer(1, 30))
 
-        # Patient Profile
-        elements.append(Paragraph("Patient Profile", custom_styles["heading"]))
-        patient_info = [
-            ["Patient ID", data["patient_id"]],
-            ["Name", data["name"]],
-            ["Age", data["age"]],
-            ["Gender", data["gender"]],
-            ["Country", data["country"]],
-            ["Date of Birth", data["date_of_birth"]],
-            ["Date of Prediction", data["date_of_prediction"]],
-        ]
-        user_info_table = Table(patient_info, hAlign="CENTER")
-        user_info_table.setStyle(
-            TableStyle(
+            # Patient Profile
+            elements.append(Paragraph("Patient Profile", custom_styles["heading"]))
+            patient_info = [
+                ["Patient ID", data["patient_id"]],
+                ["Name", data["name"]],
+                ["Age", data["age"]],
+                ["Gender", data["gender"]],
+                ["Country", data["country"]],
+                ["Date of Birth", data["date_of_birth"]],
+                ["Date of Prediction", data["date_of_prediction"]],
+            ]
+            user_info_table = Table(patient_info, hAlign="CENTER")
+            user_info_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("TOPPADDING", (0, 0), (-1, 0), 12),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                    ]
+                )
+            )
+            elements.append(user_info_table)
+            elements.append(Spacer(1, 50))
+
+            # Risk Level
+            risk_level = data["risk_level"]
+            elements.append(Paragraph("Predicted Risk Level", custom_styles["heading"]))
+            elements.append(Paragraph(f"Risk Level: {risk_level['info']}"))
+
+            elements.append(Spacer(1, 50))
+            elements.append(
+                Paragraph("Probability Assessment", custom_styles["heading"])
+            )
+            risk_level_info = [
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("TOPPADDING", (0, 0), (-1, 0), 12),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-                ]
-            )
-        )
-        elements.append(user_info_table)
-        elements.append(Spacer(1, 50))
-
-        # Risk Level
-        risk_level = data["risk_level"]
-        elements.append(Paragraph("Predicted Risk Level", custom_styles["heading"]))
-        elements.append(Paragraph(f"Risk Level: {risk_level['info']}"))
-
-        elements.append(Spacer(1, 50))
-        elements.append(Paragraph("Probability Assessment", custom_styles["heading"]))
-        risk_level_info = [
-            [
-                "Probability of Being Benign",
-                "{:.2f}%".format(data["probability_benign"] * 100),
-            ],
-            [
-                "Probability of Being Malignant",
-                "{:.2f}%".format(data["probability_malignant"] * 100),
-            ],
-            ["Risk Category", data["risk_lvl"]],
-            [
-                "Health History",
-                f"({data['progress']}%)",
-            ],
-        ]
-        risk_level_table = Table(risk_level_info)
-        risk_level_table.setStyle(
-            TableStyle(
+                    "Probability of Being Benign",
+                    "{:.2f}%".format(data["probability_benign"] * 100),
+                ],
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ]
-            )
-        )
-        elements.append(risk_level_table)
-
-        # Clinical Features
-        elements.append(Spacer(1, 30))
-        # Convert the data to a format that can be used by the Table class
-        table_data = [["Feature Name", "Mean Value", "Worst Value", "Standard Error"]]
-        for feature in data["features"]:
-            table_data.append(
+                    "Probability of Being Malignant",
+                    "{:.2f}%".format(data["probability_malignant"] * 100),
+                ],
+                ["Risk Category", data["risk_lvl"]],
                 [
-                    feature["Feature Name"],
-                    feature["Mean"],
-                    feature["Worst"],
-                    feature["Standard Error"],
-                ]
+                    "Health History",
+                    f"({data['progress']}%)",
+                ],
+            ]
+            risk_level_table = Table(risk_level_info)
+            risk_level_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                    ]
+                )
+            )
+            elements.append(risk_level_table)
+
+            # Clinical Features
+            elements.append(Spacer(1, 30))
+            # Convert the data to a format that can be used by the Table class
+            table_data = [
+                ["Feature Name", "Mean Value", "Worst Value", "Standard Error"]
+            ]
+            for feature in data["features"]:
+                table_data.append(
+                    [
+                        feature["Feature Name"],
+                        feature["Mean"],
+                        feature["Worst"],
+                        feature["Standard Error"],
+                    ]
+                )
+
+            # Create and style the table
+            features_table = Table(table_data, hAlign="CENTER")
+            features_table.setStyle(
+                TableStyle(
+                    [
+                        (
+                            "BACKGROUND",
+                            (0, 0),
+                            (-1, 0),
+                            colors.lightgrey,
+                        ),  # Header background
+                        (
+                            "TEXTCOLOR",
+                            (0, 0),
+                            (-1, 0),
+                            colors.black,
+                        ),  # Header text color
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),  # Text alignment
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),  # Header font
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),  # Header padding
+                        (
+                            "BACKGROUND",
+                            (0, 1),
+                            (-1, -1),
+                            colors.whitesmoke,
+                        ),  # Row background color
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),  # Grid lines
+                    ]
+                )
             )
 
-        # Create and style the table
-        features_table = Table(table_data, hAlign="CENTER")
-        features_table.setStyle(
-            TableStyle(
-                [
-                    (
-                        "BACKGROUND",
-                        (0, 0),
-                        (-1, 0),
-                        colors.lightgrey,
-                    ),  # Header background
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),  # Header text color
-                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),  # Text alignment
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),  # Header font
-                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),  # Header padding
-                    (
-                        "BACKGROUND",
-                        (0, 1),
-                        (-1, -1),
-                        colors.whitesmoke,
-                    ),  # Row background color
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.black),  # Grid lines
-                ]
+            # Build the document with the table
+            elements.append(Spacer(1, 30))
+            elements.append(Paragraph("Model Features", custom_styles["heading"]))
+            elements.append(features_table)
+
+            # Visual Analysis
+            elements.append(Spacer(1, 30))
+            elements.append(Paragraph("Visual Analysis", custom_styles["heading"]))
+            chart_base64 = self.generate_chart(data["chart_data"])
+            chart_img = Image(
+                BytesIO(base64.b64decode(chart_base64)), width=500, height=300
             )
-        )
+            elements.append(chart_img)
+            elements.append(Spacer(1, 10))
 
-        # Build the document with the table
-        elements.append(Spacer(1, 30))
-        elements.append(Paragraph("Model Features", custom_styles["heading"]))
-        elements.append(features_table)
-
-        # Visual Analysis
-        elements.append(Spacer(1, 30))
-        elements.append(Paragraph("Visual Analysis", custom_styles["heading"]))
-        chart_base64 = self.generate_chart(data["chart_data"])
-        chart_img = Image(
-            BytesIO(base64.b64decode(chart_base64)), width=500, height=300
-        )
-        elements.append(chart_img)
-        elements.append(Spacer(1, 10))
-
-        # # Predictive Model
-        elements.append(Paragraph("Predictive Model", custom_styles["heading"]))
-        model_info = [
-            ["Model Type", data["model_type"]],
-            ["Model Version", data["model_version"]],
-            ["Training Dataset", data["training_dataset"]],
-            ["Accuracy", f"{data['accuracy']}%"],
-            ["Precision", f"{data['precision']}%"],
-            ["Recall", f"{data['recall']}%"],
-            ["F1-score", f"{data['f1_score']}%"],
-        ]
-        model_table = Table(model_info)
-        model_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ]
+            # # Predictive Model
+            elements.append(Paragraph("Predictive Model", custom_styles["heading"]))
+            model_info = [
+                ["Model Type", data["model_type"]],
+                ["Model Version", data["model_version"]],
+                ["Training Dataset", data["training_dataset"]],
+                ["Accuracy", f"{data['accuracy']}%"],
+                ["Precision", f"{data['precision']}%"],
+                ["Recall", f"{data['recall']}%"],
+                ["F1-score", f"{data['f1_score']}%"],
+            ]
+            model_table = Table(model_info)
+            model_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                    ]
+                )
             )
-        )
-        elements.append(model_table)
+            elements.append(model_table)
 
-        # Recommendations
-        elements.append(Spacer(1, 50))
-        elements.append(Paragraph("Recommendations", custom_styles["heading"]))
-        for rec in risk_level["recommendations"]:
-            elements.append(Paragraph(rec["title"], custom_styles["heading"]))
-            elements.append(Paragraph(rec["message"], custom_styles["body"]))
-        elements.append(Spacer(1, 12))
+            # Recommendations
+            elements.append(Spacer(1, 50))
+            elements.append(Paragraph("Recommendations", custom_styles["heading"]))
+            for rec in risk_level["recommendations"]:
+                elements.append(Paragraph(rec["title"], custom_styles["heading"]))
+                elements.append(Paragraph(rec["message"], custom_styles["body"]))
+            elements.append(Spacer(1, 12))
 
-        # Next Steps
-        elements.append(Paragraph("Next Steps", custom_styles["heading"]))
-        elements.append(Paragraph(risk_level["next"], custom_styles["body"]))
-        for ns in risk_level["next_steps"]:
-            elements.append(Paragraph(ns["subtitle"], custom_styles["heading"]))
-            for msg in ns["messages"]:
-                elements.append(Paragraph(msg, custom_styles["body"]))
-        elements.append(Spacer(1, 12))
+            # Next Steps
+            elements.append(Paragraph("Next Steps", custom_styles["heading"]))
+            elements.append(Paragraph(risk_level["next"], custom_styles["body"]))
+            for ns in risk_level["next_steps"]:
+                elements.append(Paragraph(ns["subtitle"], custom_styles["heading"]))
+                for msg in ns["messages"]:
+                    elements.append(Paragraph(msg, custom_styles["body"]))
+            elements.append(Spacer(1, 12))
 
-        # Limitations
-        elements.append(Paragraph("Limitations", custom_styles["heading"]))
-        limitations = [
-            "Model limitations: This model is not perfect and should not be used as the sole basis for medical decisions.",
-            "Data quality: The accuracy of the predictions depends on the quality of the input data.",
-        ]
-        for lim in limitations:
-            elements.append(Paragraph(lim, custom_styles["body"]))
+            # Limitations
+            elements.append(Paragraph("Limitations", custom_styles["heading"]))
+            limitations = [
+                "Model limitations: This model is not perfect and should not be used as the sole basis for medical decisions.",
+                "Data quality: The accuracy of the predictions depends on the quality of the input data.",
+            ]
+            for lim in limitations:
+                elements.append(Paragraph(lim, custom_styles["body"]))
 
-        # Footer
-        elements.append(Spacer(1, 40))
-        elements.append(
-            Paragraph(
-                "This report is generated based on the input data provided. For a more detailed analysis, consult a healthcare professional."
+            # Footer
+            elements.append(Spacer(1, 40))
+            elements.append(
+                Paragraph(
+                    "This report is generated based on the input data provided. For a more detailed analysis, consult a healthcare professional."
+                )
             )
-        )
-        elements.append(
-            Paragraph(
-                "Confidentiality Notice: This report contains sensitive information. Handle with care."
+            elements.append(
+                Paragraph(
+                    "Confidentiality Notice: This report contains sensitive information. Handle with care."
+                )
             )
-        )
-        elements.append(Spacer(1, 30))
-        elements.append(
-            Paragraph(f"Created By {data['created_by']}", custom_styles["footer"])
-        )
+            elements.append(Spacer(1, 30))
+            elements.append(
+                Paragraph(f"Created By {data['created_by']}", custom_styles["footer"])
+            )
 
-        doc.build(elements)
-        pdf = buffer.getvalue()
-        buffer.close()
-        return pdf
+            doc.build(elements)
+            pdf = buffer.getvalue()
+            buffer.close()
+            return pdf
+        except Exception as e:
+            logger.error(f"Error generating PDF: {e}")
+            return HttpResponse("Failed to generate PDF.", status=500)
 
     def get(self, request, *args, **kwargs):
         pdf = self.generate_pdf()
@@ -1384,32 +1411,59 @@ class GenerateReportView(HelpResponse, View):
         return response
 
 
-from django.views.generic import TemplateView
-
-
-class FeatureExplanationView(TemplateView):
+class FeatureExplanationView(ActiveUserRequiredMixin, TemplateView):
+    require_staff = True
     template_name = "ml/feature_explanations.html"
+    extra_context = {
+        "title_root": "Feature Explanation",
+    }
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["feature_explanations"] = FEATURE_EXPLANATIONS
         context["feature_abbreviations"] = FEATURE_ABBRI
+        log_user_activity(
+            self.request, self.request.user, "Accessed feature explanations"
+        )
+        logger.info(f"User {self.request.user.username} accessed feature explanations.")
+
         return context
 
 
-class TrainedModelListView(FilterView):
+class TrainedModelListView(ActiveUserRequiredMixin, FilterView):
+    require_staff = True
     model = TrainedModel
     context_object_name = "models"
     template_name = "ml/models.html"
     filterset_class = TrainedModelFilterFilter
     paginate_by = 5
+    extra_context = {
+        "title_root": "Model List",
+    }
+
+    def get(self, request, *args, **kwargs):
+        log_user_activity(request, request.user, "Accessed trained models list")
+        logger.info(f"User {request.user.username} accessed the trained models list.")
+
+        return super().get(request, *args, **kwargs)
 
 
-class TrainedModelDetailView(View):
+class TrainedModelDetailView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
     def get(self, request, *args, **kwargs):
         pk = kwargs.get("pk")
         try:
             model = TrainedModel.objects.get(pk=pk)
+
+            # Log user activity
+            log_user_activity(
+                request, request.user, f"Viewed details of TrainedModel ID {pk}"
+            )
+            logger.info(
+                f"User {request.user.username} viewed details of TrainedModel ID {pk}."
+            )
+
             data = {
                 "name": model.name.upper(),
                 "version": model.version,
@@ -1419,8 +1473,126 @@ class TrainedModelDetailView(View):
                 "recall": model.recall,
                 "f1_score": model.f1_score,
                 "date_trained": model.date_trained,
-                "is_default": "Yes" if model.is_default else "No"
+                "is_default": "Yes" if model.is_default else "No",
             }
             return JsonResponse(data)
         except TrainedModel.DoesNotExist:
+            logger.error(f"TrainedModel ID {pk} not found.")
             return JsonResponse({"error": "Model not found."}, status=404)
+
+
+class TestimonialListView(ActiveUserRequiredMixin, FilterView):
+    require_staff = True
+    model = Feedback
+    context_object_name = "items"
+    template_name = "ml/testimonials.html"
+    filterset_class = FeedbackFilterFilter
+    paginate_by = 10
+    ordering = ["-submitted_at"]
+    extra_context = {
+        "title_root": "Testimonials",
+    }
+
+    def get(self, request, *args, **kwargs):
+        log_user_activity(request, request.user, "Accessed testimonial list")
+        logger.info(f"User {request.user.username} accessed the testimonial list.")
+        return super().get(request, *args, **kwargs)
+
+
+class TestimonialDeleteView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
+    def post(self, request, *args, **kwargs):
+        selected_ids = request.POST.getlist("selected_items")
+        try:
+            if selected_ids:
+                contacts = Feedback.objects.filter(id__in=selected_ids)
+                count = contacts.count()
+                contacts.delete()
+                messages.success(request, f"{count} feedback(s) deleted successfully.")
+                log_user_activity(request, request.user, "DELETE TESTIMONIAL(s)")
+                return JsonResponse({"success": True}, status=200)
+            else:
+                logger.warning(request, "DELETE_TESTIMONIALS: No Testimonial selected.")
+                return JsonResponse(
+                    {"success": False, "error": "No Testimonial selected."}, status=400
+                )
+        except Exception as e:
+            logger.error(
+                request,
+                "DELETE_TESTIMONIALS",
+                f"Error deleting Testimonials: {e}",
+                level="ERROR",
+            )
+            return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+class TestimonialDetailView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
+    def get(self, request, *args, **kwargs):
+        pk = kwargs.get("pk")
+        try:
+            item = get_object_or_404(Feedback, pk=pk)
+            rating_text = dict(RATE_CHOICES).get(item.rating, "Unknown Rating")
+            data = {
+                "user": (
+                    item.result.user.full_name().title() if item.result.user else "Anonymous"
+                ),
+                "email": item.result.user.email if item.result.user else "N/A",
+                "subject": rating_text,
+                "message": item.message,
+                "submitted_at": item.submitted_at.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+
+            logger.info(f"VIEW_CONTACT_DETAIL: Contact details retrieved for ID {pk}.")
+            log_user_activity(request, request.user, "VIEW CONTACT DETAIL")
+            return JsonResponse(data)
+        except Feedback.DoesNotExist:
+            logger.warning(f"Feedback not found for ID {pk}.")
+            return JsonResponse({"error": "Feedback not found."}, status=404)
+        except Exception as e:
+            logger.error(
+                f"An error occurred while retrieving contact details for ID {pk}: {e}"
+            )
+            return JsonResponse({"error": "An unexpected error occurred."}, status=500)
+
+
+class ToggleFeedbackShowView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
+    def post(self, request, *args, **kwargs):
+        pk = kwargs.get("pk")
+        feedback = get_object_or_404(Feedback, pk=pk)
+
+        try:
+            if feedback.show:
+                feedback.show = False
+                message = "Feedback is now private."
+            else:
+                # Check if there are already 3 feedbacks marked as `show=True`
+                shown_feedbacks = Feedback.objects.filter(show=True)
+                if shown_feedbacks.count() >= 3:
+                    oldest_feedback = shown_feedbacks.order_by("submitted_at").first()
+                    oldest_feedback.show = False
+                    oldest_feedback.save()
+                    logger.info(
+                        f"TOGGLE_FEEDBACK_SHOW: Feedback ID {oldest_feedback.pk} has been put to private to allow new feedback to be shown."
+                    )
+                feedback.show = True
+                message = "Feedback is now public."
+
+            feedback.save()
+            logger.info(
+                f"TOGGLE_FEEDBACK_SHOW: Show status toggled for Feedback ID {pk}."
+            )
+            log_user_activity(request, request.user, "TOGGLE FEEDBACK SHOW")
+            return JsonResponse(
+                {"success": True, "message": message, "new_status": feedback.show}
+            )
+
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred while toggling show status for Feedback ID {pk}: {e}"
+            )
+            return JsonResponse({"error": "An unexpected error occurred."}, status=500)
