@@ -1,31 +1,40 @@
 import re
-from django.http import Http404, JsonResponse
+from django.http import Http404, JsonResponse, HttpResponse
 from django.shortcuts import redirect, render
-from django.views import View
 from django.utils import timezone
 from PaulVideoPlatform.utils import MailUtils
 from accounts.filters import AccountFilter
 from accounts.forms import UserCreateForm
+from accounts.mixins import ActiveUserRequiredMixin
 from accounts.models import Account
 from accounts.templatetags.custom_filters import calculate_age
-from ml.utils import DecimalEncoder
+from ml.utils import DecimalEncoder, log_user_activity
 from patients.filters import (
     ActivityLogFilter,
     ContactFilter,
+    FeedbackFilterFilter,
     QuestionnaireResponseFilter,
     TrainedModelFilterFilter,
 )
-from patients.models import STATE, Contact, PredictionResult, QuestionnaireResponse
+from patients.models import (
+    STATE,
+    Contact,
+    Feedback,
+    PredictionResult,
+    QuestionnaireResponse,
+)
 from patients.utils import (
     FEATURE_ABBRI,
     FEATURE_EXPLANATIONS,
     PROBABILITY_SUMMARIES,
+    RATE_CHOICES,
     SLIDER_LABELS,
     HelpResponse,
 )
 from .models import ActivityLog, EmailSettings, GeneralSettings, TrainedModel
 from .filters import PredictionResultFilter
 from django.db.models import Avg, Q, Count, F
+from django.db.models.functions import TruncMonth, TruncWeek
 from datetime import date
 from django.db.models.functions import ExtractWeekDay
 from collections import defaultdict
@@ -37,17 +46,123 @@ from django.views.generic.edit import UpdateView
 from .forms import EmailSettingsForm, GeneralSettingsForm
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+import logging
+from django.shortcuts import get_object_or_404
+from django.views.generic import View
+from io import BytesIO
+import base64
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Table,
+    TableStyle,
+    Spacer,
+    Image,
+)
+from django.views.generic import TemplateView
+from django.core.paginator import Paginator
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.views import APIView
+from collections import defaultdict
+from datetime import date
+
+logger = logging.getLogger("custom_logger")
+
+from django.views import View
+from django.utils import timezone
+from django.db.models import Count
+from django.shortcuts import render
+from django.db.models.functions import TruncMonth, ExtractWeekDay
 
 
-class DashboardView(View):
+class DashboardView(ActiveUserRequiredMixin, View):
+    require_staff = True
     template_name = "ml/dashboard.html"
 
+    def get_chart_data(self, queryset, date_field, group_by="month"):
+        if group_by == "month":
+            # Initialize the months
+            months = [
+                "Jan",
+                "Feb",
+                "Mar",
+                "Apr",
+                "May",
+                "Jun",
+                "Jul",
+                "Aug",
+                "Sep",
+                "Oct",
+                "Nov",
+                "Dec",
+            ]
+            counts = [0] * 12  # Initialize counts to zero for all months
+
+            # Get data from the queryset
+            data = (
+                queryset.annotate(month=TruncMonth(date_field))
+                .values("month")
+                .annotate(count=Count("id"))
+                .order_by("month")
+            )
+
+            # Populate counts based on the available data
+            for entry in data:
+                month_idx = (
+                    entry["month"].month - 1
+                )  # Convert month to zero-based index
+                counts[month_idx] = entry["count"]
+
+            labels = months
+
+        elif group_by == "weekday":
+            data = (
+                queryset.annotate(weekday=ExtractWeekDay(date_field))
+                .values("weekday")
+                .annotate(count=Count("id"))
+                .order_by("weekday")
+            )
+            labels = [
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+            ]
+            counts = [0] * 7
+            for entry in data:
+                counts[entry["weekday"] - 1] = entry["count"]
+
+        return {"labels": labels, "data": counts}
+
     def get(self, request, *args, **kwargs):
+        # General statistics
         total_users = Account.objects.count()
         active_users = Account.objects.filter(is_active=True).count()
+        total_assessments = PredictionResult.objects.count()
+
         one_month_ago = timezone.now() - timezone.timedelta(days=30)
         recent_signups = Account.objects.filter(date_joined__gte=one_month_ago).count()
-        total_assessments = PredictionResult.objects.count()
+
+        # Preparing chart data
+        user_chart_data = self.get_chart_data(Account.objects.all(), "date_joined")
+        active_users_chart_data = self.get_chart_data(
+            Account.objects.filter(is_active=True), "date_joined"
+        )
+        assessments_chart_data = self.get_chart_data(
+            PredictionResult.objects.all(), "submission_date"
+        )
+        signups_chart_data = self.get_chart_data(
+            Account.objects.filter(date_joined__gte=one_month_ago),
+            "date_joined",
+            group_by="weekday",
+        )
+
         recent_activities = ActivityLog.objects.exclude(user=request.user).order_by(
             "-timestamp"
         )[:5]
@@ -59,65 +174,280 @@ class DashboardView(View):
             "total_assessments": total_assessments,
             "recent_activities": recent_activities,
             "title_root": "Dashboard",
+            "user_chart_data": user_chart_data,
+            "active_users_chart_data": active_users_chart_data,
+            "assessments_chart_data": assessments_chart_data,
+            "signups_chart_data": signups_chart_data,
         }
+
         return render(request, self.template_name, context)
 
 
-class DataVisualizationView(FilterView):
-    filterset_class = PredictionResultFilter
+class DataVisualizationView(View):
     template_name = "ml/data_visualization.html"
     context_object_name = "results"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.update(self.get_chart_data(self.object_list))
-        return context
+    def get(self, request, *args, **kwargs):
+        logger.info(f"User '{request.user.username}' accessed data visualization page.")
+        log_user_activity(request, request.user, "accessed data visualization")
+
+        if self.is_ajax(request):
+            # Return initial data as JSON for AJAX requests
+            return JsonResponse(
+                self.get_chart_data(PredictionResult.objects.all()), safe=False
+            )
+
+        # Render the initial page without filtering
+        return self.render_page(request)
+
+    def post(self, request, *args, **kwargs):
+
+        logger.info(
+            f"User '{request.user.username}' applied filters on data visualization."
+        )
+        log_user_activity(
+            request, request.user, "applied filters on data visualization"
+        )
+
+        if self.is_ajax(request):
+            filterset = PredictionResultFilter(
+                request.POST or None, queryset=PredictionResult.objects.all()
+            )
+
+            if filterset.is_valid():
+                queryset = filterset.qs
+            else:
+                queryset = PredictionResult.objects.all()
+
+            # Return updated chart data as JSON
+            return JsonResponse(self.get_chart_data(queryset), safe=False)
+
+        # Apply filters based on POST data
+
+        return self.render_page(request, apply_filters=True)
+
+    def render_page(self, request, apply_filters=False):
+        # Initialize the filterset with POST data if applicable
+        filterset = PredictionResultFilter(
+            request.POST or None, queryset=PredictionResult.objects.all()
+        )
+
+        # Check if we need to apply filters and if the filterset is valid
+        if apply_filters and filterset.is_valid():
+            queryset = filterset.qs
+        else:
+            # If not applying filters or the filterset is invalid, use all results
+            queryset = PredictionResult.objects.all()
+
+        context = {
+            "title_root": "Data Visualization",
+            "filter": filterset,
+            **self.get_chart_data(queryset),
+        }
+
+        # Render the page with the context
+        return render(request, self.template_name, context)
 
     def get_chart_data(self, queryset):
         # Prepare the chart data
         return {
-            "line_chart_json": json.dumps(
-                self.prepare_line_chart_data(queryset), cls=DecimalEncoder
-            ),
-            "area_chart_json": json.dumps(
-                self.prepare_area_chart_data(queryset), cls=DecimalEncoder
-            ),
-            "bar_chart_json": json.dumps(
-                self.prepare_bar_chart_data(queryset), cls=DecimalEncoder
-            ),
-            "mixed_chart_json": json.dumps(
-                self.prepare_mixed_chart_data(queryset), cls=DecimalEncoder
-            ),
-            "pie_chart_json": json.dumps(
-                self.prepare_pie_chart_data(queryset), cls=DecimalEncoder
-            ),
-            "radar_chart_json": json.dumps(
-                self.prepare_radar_chart_data(queryset), cls=DecimalEncoder
-            ),
-            "histogram_data_json": json.dumps(
-                self.prepare_histogram_data(queryset), cls=DecimalEncoder
-            ),
+            "pie_chart_html": self.prepare_pie_chart(queryset),
+            "bar_chart_html": self.prepare_bar_chart_data(queryset),
+            "radar_chart_html": self.prepare_radar_chart_data(queryset),
+            "histogram_chart_html": self.prepare_histogram_data(queryset),
+            "mixed_chart_html": self.prepare_mixed_chart_data(queryset),
+            "area_chart_html": self.prepare_area_chart_data(queryset),
+            "line_chart_html": self.prepare_line_chart_data(queryset),
         }
 
-    def render_to_response(self, context, **response_kwargs):
-        # Return JSON response if AJAX request
-        if self.request.headers.get("x-requested-with") == "XMLHttpRequest":
-            chart_data = self.get_chart_data(self.object_list)
-            return JsonResponse(chart_data)
-        # Default response
-        return render(self.request, self.template_name, context)
+    def is_ajax(self, request):
+        """Check if the request is an AJAX request."""
+        return (
+            request.headers.get("x-requested-with") == "XMLHttpRequest"
+            or request.META.get("HTTP_X_REQUESTED_WITH") == "XMLHttpRequest"
+        )
 
-    def prepare_pie_chart_data(self, queryset):
-        # Logic for preparing pie chart data
+    def prepare_pie_chart(self, queryset):
+        # Prepare advanced pie chart with Plotly
         pie_chart_data = {"labels": [], "series": []}
-        # Example: group data by risk level and count occurrences
+
         for result in queryset:
             risk_level = result.risk_level
+            print("Result: ", result)
             if risk_level not in pie_chart_data["labels"]:
                 pie_chart_data["labels"].append(risk_level)
                 pie_chart_data["series"].append(0)
             pie_chart_data["series"][pie_chart_data["labels"].index(risk_level)] += 1
-        return pie_chart_data
+
+        fig = go.Figure(
+            data=[
+                go.Pie(
+                    labels=pie_chart_data["labels"],
+                    values=pie_chart_data["series"],
+                    hole=0.4,
+                    hoverinfo="label+percent",
+                    textinfo="value",
+                )
+            ]
+        )
+
+        fig.update_layout(
+            title="Distribution of Risk Levels",
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.2,
+                xanchor="center",
+                x=0.5,
+            ),
+            margin=dict(l=20, r=20, t=40, b=20),
+        )
+
+        config = {
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "zoom2d",
+                "select2d",
+                "lasso2d",
+                "hoverCompareCartesian",
+                "hoverClosestCartesian",
+            ],
+            "displayModeBar": True,
+        }
+
+        return fig.to_html(
+            config=config, include_plotlyjs=True, full_html=False, div_id="pieChart"
+        )
+
+    def prepare_bar_chart_data(self, queryset=None):
+        if queryset is None:
+            queryset = self.object_list
+
+        # Initialize dictionaries for grouping by year and age group
+        year_age_groups = defaultdict(lambda: defaultdict(list))
+        today = date.today()
+
+        for record in queryset:
+            # Ensure that record.submission_date and record.user.date_of_birth are not None
+            if record.submission_date and record.user.date_of_birth:
+                # Calculate the year of the record and the age of the user
+                record_year = record.submission_date.year
+                date_of_birth = record.user.date_of_birth
+                age = (
+                    today.year
+                    - date_of_birth.year
+                    - (
+                        (today.month, today.day)
+                        < (date_of_birth.month, date_of_birth.day)
+                    )
+                )
+
+                # Determine the age group
+                if age < 20:
+                    age_group = "Under 20"
+                elif 20 <= age < 30:
+                    age_group = "20-29"
+                elif 30 <= age < 40:
+                    age_group = "30-39"
+                elif 40 <= age < 50:
+                    age_group = "40-49"
+                elif 50 <= age < 60:
+                    age_group = "50-59"
+                else:
+                    age_group = "60+"
+
+                # Append the risk score to the appropriate year and age group
+                risk_score = (
+                    round(record.risk_score, 2) if record.risk_score is not None else 0
+                )
+                year_age_groups[record_year][age_group].append(risk_score)
+
+        # Prepare data for the bar chart
+        bar_chart_data = {"categories": [], "series": []}
+        series_data = defaultdict(list)
+
+        for year, age_groups in year_age_groups.items():
+            for age_group, risk_scores in age_groups.items():
+                category_label = f"{year} ({age_group})"
+                bar_chart_data["categories"].append(category_label)
+
+                # Calculate statistical measures: min, max, and average
+                if risk_scores:  # Ensure there are risk scores to calculate statistics
+                    min_risk = min(risk_scores)
+                    max_risk = max(risk_scores)
+                    avg_risk = sum(risk_scores) / len(risk_scores)
+
+                    series_data["Min Risk"].append(round(min_risk, 2))
+                    series_data["Max Risk"].append(round(max_risk, 2))
+                    series_data["Avg Risk"].append(round(avg_risk, 2))
+                else:
+                    series_data["Min Risk"].append(0)
+                    series_data["Max Risk"].append(0)
+                    series_data["Avg Risk"].append(0)
+
+        # Create the Plotly bar chart
+        fig = go.Figure()
+
+        colors = {"Min Risk": "blue", "Max Risk": "red", "Avg Risk": "green"}
+
+        for stat, data in series_data.items():
+            fig.add_trace(
+                go.Bar(
+                    x=bar_chart_data["categories"],
+                    y=data,
+                    name=stat,
+                    marker_color=colors[stat],
+                    text=data,
+                    textposition="auto",
+                )
+            )
+
+        # Customize the layout to enhance aesthetics
+        fig.update_layout(
+            title={
+                "text": "Risk Score Analysis by Year and Age Group",
+                "font_size": 22,
+                "xanchor": "center",
+                "x": 0.5,
+            },
+            xaxis_title="Year and Age Group",
+            yaxis_title="Risk Score",
+            barmode="group",
+            xaxis=dict(
+                tickangle=-45,
+                tickvals=list(range(len(bar_chart_data["categories"]))),
+                ticktext=bar_chart_data["categories"],
+            ),
+            legend=dict(
+                title="Risk Statistics",
+                orientation="h",
+                x=0.5,
+                xanchor="center",
+                y=-0.2,
+                yanchor="top",
+                bgcolor="rgba(255, 255, 255, 0.7)",
+                borderwidth=1,
+                font=dict(size=13),
+            ),
+            autosize=True,
+        )
+
+        config = {
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "zoom2d",
+                "select2d",
+                "lasso2d",
+                "hoverCompareCartesian",
+                "hoverClosestCartesian",
+            ],
+            "displayModeBar": True,
+        }
+
+        return fig.to_html(
+            config=config, include_plotlyjs=True, full_html=False, div_id="barChart"
+        )
 
     def prepare_radar_chart_data(self, queryset):
         labels = ["Risk Level: Low", "Risk Level: Moderate", "Risk Level: High"]
@@ -160,12 +490,73 @@ class DataVisualizationView(FilterView):
                     ).count()
                 )
 
-        series = [
-            {"name": "Benign Cases", "data": benign_data},
-            {"name": "Malignant Cases", "data": malignant_data},
-        ]
+        # Create radar chart
+        fig = go.Figure()
 
-        return {"series": series, "labels": labels}
+        # Add trace for benign cases
+        fig.add_trace(
+            go.Scatterpolar(
+                r=benign_data,
+                theta=labels,
+                fill="toself",
+                name="Benign Cases",
+                line=dict(color="royalblue"),
+                fillcolor="rgba(66, 133, 244, 0.2)",
+            )
+        )
+
+        # Add trace for malignant cases
+        fig.add_trace(
+            go.Scatterpolar(
+                r=malignant_data,
+                theta=labels,
+                fill="toself",
+                name="Malignant Cases",
+                line=dict(color="firebrick"),
+                fillcolor="rgba(203, 32, 39, 0.2)",
+            )
+        )
+
+        # Customize the layout for better aesthetics
+        fig.update_layout(
+            title={
+                "text": "Risk Level Distribution by Case Type",
+                "font_size": 24,
+                "x": 0.5,
+                "xanchor": "center",
+            },
+            polar=dict(
+                angularaxis=dict(
+                    gridcolor="lightgray", tickfont=dict(size=12), showline=True
+                ),
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, max(max(benign_data), max(malignant_data)) + 5],
+                ),
+            ),
+            showlegend=True,
+            legend=dict(
+                title="Case Type", orientation="h", x=0.5, xanchor="center", y=-0.1
+            ),
+            autosize=True,
+        )
+
+        # Return the figure as HTML
+        config = {
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "zoom2d",
+                "select2d",
+                "lasso2d",
+                "hoverCompareCartesian",
+                "hoverClosestCartesian",
+            ],
+            "displayModeBar": True,
+        }
+
+        return fig.to_html(
+            config=config, include_plotlyjs=True, full_html=False, div_id="radarChart"
+        )
 
     def prepare_histogram_data(self, queryset):
         # Prepare data for the age distribution histogram
@@ -174,25 +565,111 @@ class DataVisualizationView(FilterView):
 
         for record in queryset:
             date_of_birth = record.user.date_of_birth
-            age = (
-                today.year
-                - date_of_birth.year
-                - ((today.month, today.day) < (date_of_birth.month, date_of_birth.day))
+            if date_of_birth is not None:
+                age = (
+                    today.year
+                    - date_of_birth.year
+                    - (
+                        (today.month, today.day)
+                        < (date_of_birth.month, date_of_birth.day)
+                    )
+                )
+                age_distribution[age] += 1
+
+        if not age_distribution:
+            return {"labels": [], "series": []}
+
+        # Calculate bin size dynamically
+        ages = list(age_distribution.keys())
+        min_age, max_age = min(ages), max(ages)
+        bin_size = max(1, (max_age - min_age) // 10)  # Adjust bin size based on range
+
+        # Define age bins
+        bins = list(range(min_age, max_age + bin_size, bin_size))
+        binned_data = defaultdict(int)
+
+        for age, count in age_distribution.items():
+            bin_index = (age // bin_size) * bin_size
+            binned_data[bin_index] += count
+
+        sorted_bins = sorted(binned_data.keys())
+        bin_counts = [binned_data[bin] for bin in sorted_bins]
+
+        # Create histogram plotly chart
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Histogram(
+                x=[age for age in age_distribution.keys()],
+                name="Age Distribution",
+                xbins=dict(start=min_age, end=max_age, size=bin_size),
+                marker_color="royalblue",
+                opacity=0.7,
             )
-            age_distribution[age] += 1
+        )
 
-        sorted_ages = sorted(age_distribution.keys())
-        age_counts = [age_distribution[age] for age in sorted_ages]
+        # Add mean and median lines
+        if ages:
+            mean_age = sum(ages) / len(ages)
+            median_age = sorted(ages)[len(ages) // 2]
 
-        return {
-            "labels": sorted_ages,
-            "series": [
-                {
-                    "name": "Age Distribution",
-                    "data": age_counts,
-                }
+            fig.add_vline(
+                x=mean_age,
+                line_dash="dash",
+                line_color="orange",
+                annotation_text=f"Mean Age: {mean_age:.2f}",
+                annotation_position="top right",
+                annotation_font_size=12,
+            )
+
+            fig.add_vline(
+                x=median_age,
+                line_dash="dot",
+                line_color="red",
+                annotation_text=f"Median Age: {median_age:.2f}",
+                annotation_position="top right",
+                annotation_font_size=12,
+            )
+
+        # Customize the layout
+        fig.update_layout(
+            title={
+                "text": "Age Distribution of Records",
+                "font_size": 24,
+                "x": 0.5,
+                "xanchor": "center",
+            },
+            xaxis=dict(
+                title="Age", tickmode="linear", dtick=bin_size, gridcolor="lightgray"
+            ),
+            yaxis=dict(title="Count", gridcolor="lightgray"),
+            bargap=0.2,
+            showlegend=True,
+            legend=dict(
+                title="Legend", orientation="h", x=0.5, xanchor="center", y=-0.1
+            ),
+            autosize=True,
+        )
+
+        # Return the figure as HTML
+        config = {
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "zoom2d",
+                "select2d",
+                "lasso2d",
+                "hoverCompareCartesian",
+                "hoverClosestCartesian",
             ],
+            "displayModeBar": True,
         }
+
+        return fig.to_html(
+            config=config,
+            include_plotlyjs=True,
+            full_html=False,
+            div_id="histogramChart",
+        )
 
     def prepare_mixed_chart_data(self, queryset=None):
         if queryset is None:
@@ -209,25 +686,31 @@ class DataVisualizationView(FilterView):
         record_count = 0
 
         for record in queryset:
-            chart_data = record.chart_data  # Directly use the dictionary
+            chart_data = getattr(record, "chart_data", None)  # Safely get chart_data
 
-            # Ensure that chart_data has the required fields
-            if all(
-                key in chart_data for key in ("mean", "worst", "standard", "categories")
-            ):
-                record_count += 1
-                mean_series = [x + y for x, y in zip(mean_series, chart_data["mean"])]
-                worst_series = [
-                    x + y for x, y in zip(worst_series, chart_data["worst"])
-                ]
-                standard_series = [
-                    x + y for x, y in zip(standard_series, chart_data["standard"])
-                ]
+            if chart_data is not None and isinstance(chart_data, dict):
+                # Ensure that chart_data has the required fields
+                if all(
+                    key in chart_data
+                    for key in ("mean", "worst", "standard", "categories")
+                ):
+                    record_count += 1
+                    mean_series = [
+                        x + y for x, y in zip(mean_series, chart_data["mean"])
+                    ]
+                    worst_series = [
+                        x + y for x, y in zip(worst_series, chart_data["worst"])
+                    ]
+                    standard_series = [
+                        x + y for x, y in zip(standard_series, chart_data["standard"])
+                    ]
 
-                if not mixed_chart_data["categories"]:
-                    mixed_chart_data["categories"] = chart_data["categories"]
+                    if not mixed_chart_data["categories"]:
+                        mixed_chart_data["categories"] = chart_data["categories"]
+                else:
+                    print(f"Missing required fields in chart_data: {chart_data}")
             else:
-                raise ValueError("chart_data is missing required fields")
+                print(f"Invalid chart_data format or None: {chart_data}")
 
         # Average the values across all records
         if record_count > 0:
@@ -240,71 +723,92 @@ class DataVisualizationView(FilterView):
         mixed_chart_data["worst"] = worst_series
         mixed_chart_data["standard"] = standard_series
 
-        return mixed_chart_data
+        # Create the Plotly mixed chart
+        fig = go.Figure()
 
-    def prepare_bar_chart_data(self, queryset=None):
-        if queryset is None:
-            queryset = self.object_list
-
-        # Initialize dictionaries for grouping by year and age group
-        year_age_groups = defaultdict(lambda: defaultdict(list))
-        today = date.today()
-
-        for record in queryset:
-            # Calculate the year of the record and the age of the user
-            record_year = record.submission_date.year
-            date_of_birth = record.user.date_of_birth
-            age = (
-                today.year
-                - date_of_birth.year
-                - ((today.month, today.day) < (date_of_birth.month, date_of_birth.day))
+        # Add traces for Mean, Worst, and Standard data
+        fig.add_trace(
+            go.Scatter(
+                x=mixed_chart_data["categories"],
+                y=mixed_chart_data["mean"],
+                mode="lines+markers",
+                name="Mean",
+                line=dict(color="royalblue", width=2),
+                marker=dict(size=8, symbol="circle", color="royalblue"),
             )
+        )
 
-            # Determine the age group
-            if age < 20:
-                age_group = "Under 20"
-            elif 20 <= age < 30:
-                age_group = "20-29"
-            elif 30 <= age < 40:
-                age_group = "30-39"
-            elif 40 <= age < 50:
-                age_group = "40-49"
-            elif 50 <= age < 60:
-                age_group = "50-59"
-            else:
-                age_group = "60+"
+        fig.add_trace(
+            go.Scatter(
+                x=mixed_chart_data["categories"],
+                y=mixed_chart_data["worst"],
+                mode="lines+markers",
+                name="Worst",
+                line=dict(color="firebrick", width=2),
+                marker=dict(size=8, symbol="square", color="firebrick"),
+            )
+        )
 
-            # Append the risk score to the appropriate year and age group
-            risk_score = round(record.risk_score, 2)
-            year_age_groups[record_year][age_group].append(risk_score)
+        fig.add_trace(
+            go.Scatter(
+                x=mixed_chart_data["categories"],
+                y=mixed_chart_data["standard"],
+                mode="lines+markers",
+                name="Standard",
+                line=dict(color="darkorange", width=2),
+                marker=dict(size=8, symbol="diamond", color="darkorange"),
+            )
+        )
 
-        # Prepare data for the bar chart
-        bar_chart_data = {"categories": [], "series": []}
-        series_data = defaultdict(list)
+        # Customize the layout
+        fig.update_layout(
+            title={
+                "text": "Mixed Chart of Mean, Worst, and Standard Values",
+                "font_size": 24,
+                "x": 0.5,
+                "xanchor": "center",
+            },
+            xaxis=dict(
+                title="Categories",
+                tickangle=-45,
+                title_font_size=16,
+                tickfont_size=14,
+                gridcolor="lightgray",
+            ),
+            yaxis=dict(
+                title="Values",
+                title_font_size=16,
+                tickfont_size=14,
+                gridcolor="lightgray",
+            ),
+            legend=dict(
+                title="Legend", orientation="h", x=0.5, xanchor="center", y=-0.1
+            ),
+            autosize=True,
+        )
 
-        for year, age_groups in year_age_groups.items():
-            for age_group, risk_scores in age_groups.items():
-                category_label = f"{year} ({age_group})"
-                bar_chart_data["categories"].append(category_label)
+        # Return the figure as HTML
+        config = {
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "zoom2d",
+                "select2d",
+                "lasso2d",
+                "hoverCompareCartesian",
+                "hoverClosestCartesian",
+            ],
+            "displayModeBar": True,
+        }
 
-                # Calculate statistical measures: min, max, and average
-                min_risk = min(risk_scores)
-                max_risk = max(risk_scores)
-                avg_risk = sum(risk_scores) / len(risk_scores)
-
-                series_data["Min Risk"].append(round(min_risk, 2))
-                series_data["Max Risk"].append(round(max_risk, 2))
-                series_data["Avg Risk"].append(round(avg_risk, 2))
-
-        for stat, data in series_data.items():
-            bar_chart_data["series"].append({"name": f"{stat}", "data": data})
-
-        return bar_chart_data
+        return fig.to_html(
+            config=config, include_plotlyjs=True, full_html=False, div_id="mixedChart"
+        )
 
     def prepare_area_chart_data(self, queryset=None):
         if queryset is None:
             queryset = self.object_list  # Default to the filtered queryset
 
+        # Initialize data structure
         area_chart_data = {"categories": [], "series": []}
 
         # Create series data for Low, Moderate, and High risk levels
@@ -314,7 +818,7 @@ class DataVisualizationView(FilterView):
             "High": [],
         }
 
-        # Aggregate data by day (or week) and risk level
+        # Aggregate data by day and risk level
         datewise_data = (
             queryset.values("submission_date")
             .annotate(
@@ -334,18 +838,89 @@ class DataVisualizationView(FilterView):
             series_data["Moderate"].append(entry["medium_risk_count"])
             series_data["High"].append(entry["high_risk_count"])
 
-        # Add series data to the final structure
-        area_chart_data["series"].append(
-            {"name": "Low Risk", "data": series_data["Low"]}
-        )
-        area_chart_data["series"].append(
-            {"name": "Moderate Risk", "data": series_data["Moderate"]}
-        )
-        area_chart_data["series"].append(
-            {"name": "High Risk", "data": series_data["High"]}
+        # Create the Plotly area chart
+        fig = go.Figure()
+
+        # Add traces for each risk level
+        fig.add_trace(
+            go.Scatter(
+                x=area_chart_data["categories"],
+                y=series_data["Low"],
+                mode="lines",
+                fill="tozeroy",
+                name="Low Risk",
+                line=dict(color="blue", width=2),
+                fillcolor="rgba(0, 0, 255, 0.3)",
+            )
         )
 
-        return area_chart_data
+        fig.add_trace(
+            go.Scatter(
+                x=area_chart_data["categories"],
+                y=series_data["Moderate"],
+                mode="lines",
+                fill="tonexty",
+                name="Moderate Risk",
+                line=dict(color="orange", width=2),
+                fillcolor="rgba(255, 165, 0, 0.3)",
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=area_chart_data["categories"],
+                y=series_data["High"],
+                mode="lines",
+                fill="tonexty",
+                name="High Risk",
+                line=dict(color="red", width=2),
+                fillcolor="rgba(255, 0, 0, 0.3)",
+            )
+        )
+
+        # Customize the layout
+        fig.update_layout(
+            title={
+                "text": "Risk Level Distribution Over Time",
+                "font_size": 24,
+                "x": 0.5,
+                "xanchor": "center",
+            },
+            xaxis=dict(
+                title="Submission Date",
+                title_font_size=16,
+                tickfont_size=14,
+                gridcolor="lightgray",
+            ),
+            yaxis=dict(
+                title="Number of Cases",
+                title_font_size=16,
+                tickfont_size=14,
+                gridcolor="lightgray",
+            ),
+            legend=dict(
+                title="Risk Levels", orientation="h", x=0.5, xanchor="center", y=-0.1
+            ),
+            autosize=True,
+            template="plotly_white",  # Provides a clean white background
+        )
+
+        # Return the figure as HTML
+        config = {
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "zoom2d",
+                "select2d",
+                "lasso2d",
+                "hoverCompareCartesian",
+                "hoverClosestCartesian",
+            ],
+            "displayModeBar": True,
+        }
+
+        return fig.to_html(
+            config=config, include_plotlyjs=True, full_html=False, div_id="areaChart"
+        )
 
     def prepare_line_chart_data(self, queryset):
         # Group data by the day of the week and calculate the average risk score
@@ -367,23 +942,90 @@ class DataVisualizationView(FilterView):
             categories.append(weekday_mapping[weekday - 1])
             series.append(float(entry["avg_risk_score"]))
 
-        line_chart_data = {
-            "categories": categories,
-            "series": [
-                {
-                    "name": "Average Risk Score",
-                    "data": series,
-                }
+        # Create Plotly line chart
+        fig = go.Figure()
+
+        # Add line trace
+        fig.add_trace(
+            go.Scatter(
+                x=categories,
+                y=series,
+                mode="lines+markers",
+                name="Average Risk Score",
+                line=dict(color="royalblue", width=3, dash="solid"),
+                marker=dict(
+                    size=8,
+                    color="royalblue",
+                    line=dict(width=2, color="rgba(0, 0, 0, 0.5)"),
+                ),
+                text=series,
+                textposition="top center",
+                hoverinfo="x+y",
+            )
+        )
+
+        # Update layout for better aesthetics
+        fig.update_layout(
+            title={
+                "text": "Average Risk Score by Day of the Week",
+                "font_size": 24,
+                "xanchor": "center",
+                "x": 0.5,
+            },
+            xaxis_title="Day of the Week",
+            yaxis_title="Average Risk Score",
+            xaxis=dict(
+                tickangle=-45,
+                showline=True,
+                showgrid=False,
+                linecolor="black",
+                linewidth=1,
+                gridcolor="lightgray",
+            ),
+            yaxis=dict(
+                showline=True,
+                showgrid=True,
+                linecolor="black",
+                linewidth=1,
+                gridcolor="lightgray",
+            ),
+            plot_bgcolor="white",
+            paper_bgcolor="rgba(255, 255, 255, 0.8)",
+            margin=dict(l=40, r=40, t=40, b=40),
+            font=dict(size=12, color="black"),
+            legend=dict(
+                title="Legend",
+                orientation="h",
+                x=0.5,
+                xanchor="center",
+                y=-0.15,
+                yanchor="top",
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                borderwidth=1,
+                font=dict(size=12),
+            ),
+            hovermode="closest",
+        )
+
+        config = {
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "zoom2d",
+                "select2d",
+                "lasso2d",
+                "hoverCompareCartesian",
+                "hoverClosestCartesian",
             ],
+            "displayModeBar": True,
         }
 
-        return line_chart_data
+        return fig.to_html(
+            config=config, include_plotlyjs=True, full_html=False, div_id="lineChart"
+        )
 
-    def render_to_response(self, context, **response_kwargs):
-        return render(self.request, self.template_name, context)
 
-
-class RecordManagementView(FilterView):
+class RecordManagementView(ActiveUserRequiredMixin, FilterView):
+    require_staff = True
     filterset_class = QuestionnaireResponseFilter
     model = QuestionnaireResponse
     template_name = "ml/record_management.html"
@@ -391,13 +1033,20 @@ class RecordManagementView(FilterView):
     ordering = ["-submission_date", "-updated_date"]
     paginate_by = 9
 
+    def get(self, request, *args, **kwargs):
+        logger.info(f"User '{request.user.username}' accessed record management page.")
+        log_user_activity(request, request.user, "accessed record management")
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        logger.info("Record management view accessed.")
         context["title_root"] = "Record Management"
         return context
 
 
-class UserManagementView(FilterView):
+class UserManagementView(ActiveUserRequiredMixin, FilterView):
+    require_staff = True
     model = Account
     template_name = "ml/user_list.html"
     context_object_name = "users"
@@ -405,8 +1054,14 @@ class UserManagementView(FilterView):
     paginate_by = 10
     ordering = ["-date_joined"]
 
+    def get(self, request, *args, **kwargs):
+        logger.info(f"User '{request.user.username}' accessed user management page.")
+        log_user_activity(request, request.user, "accessed user management")
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
         query = super().get_queryset()
+        logger.info("User management queryset filtered.")
         return query.exclude(pk=self.request.user.id)
 
     def get_context_data(self, **kwargs):
@@ -417,137 +1072,220 @@ class UserManagementView(FilterView):
         return context
 
 
-from django.http import JsonResponse
-from django.views import View
-from django.shortcuts import get_object_or_404
-
-
-class AddOrUpdateUserView(MailUtils, View):
+class AddOrUpdateUserView(ActiveUserRequiredMixin, MailUtils, View):
     require_staff = True
     form_class = UserCreateForm
 
     def post(self, request, *args, **kwargs):
         user_id = request.POST.get("user_id")
-        user = None
-        send_mail = False
+        action = "updated" if user_id else "created"
+        logger.info(f"User '{request.user.username}' initiated user {action} process.")
+
         if user_id:
             user = get_object_or_404(Account, id=user_id)
             form = self.form_class(request.POST, instance=user)
-            email = form.cleaned_data.get("email")
-            if email != user.email:
-                form.is_active = False
-                send_mail = True
-            msg = "updated"
         else:
             form = self.form_class(request.POST)
-            msg = "created"
-            send_mail = True
 
         if form.is_valid():
+            user = form.save(commit=False)
             if not user_id:
-                user = request.user
-            form.save(user=user)
-            if send_mail:
-                # Send activation email
+                user.set_password(Account.objects.make_random_password())
+                user.is_active = False  # User needs to activate their account
+            user.save()
+            log_user_activity(request, request.user, f"{action} user '{user.email}'")
+            logger.info(
+                f"User '{user.email}' {action} successfully by '{request.user.username}'."
+            )
+
+            if not user.is_active:
                 try:
-                    self.compose_email(self.request, user)
-                    msg = f"account {msg} and activation sent successfully."
-                except:
-                    msg = f"account {msg} and successfully but could not sent activation link"
+                    self.compose_email(request, user)
+                    logger.info(f"Activation email sent to '{user.email}'.")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to send activation email to '{user.email}': {e}",
+                        exc_info=True,
+                    )
 
-                messages.success(request, msg)
-                return JsonResponse({"success": True})
-
-            messages.success(request, f"User {msg} successfully")
-            return JsonResponse({"success": True})
+            return JsonResponse(
+                {"success": True, "message": f"User {action} successfully."}
+            )
         else:
             errors = form.errors.as_json()
+            logger.warning(
+                f"User '{request.user.username}' failed to {action} user due to form errors: {errors}"
+            )
             return JsonResponse({"success": False, "errors": errors}, status=400)
 
 
-class UserDeleteView(View):
+class UserDeleteView(ActiveUserRequiredMixin, View):
     require_staff = True
 
     def post(self, request, *args, **kwargs):
         user_id = request.POST.get("user_id")
-        user = get_object_or_404(Account, id=user_id)
-        user.delete()
-        return JsonResponse({"success": True, "message": "User deleted successfully."})
+        logger.info(
+            f"User '{request.user.username}' initiated deletion of user ID '{user_id}'."
+        )
+        try:
+            user = get_object_or_404(Account, id=user_id)
+            user_email = user.email
+            user.delete()
+            log_user_activity(request, request.user, f"deleted user '{user_email}'")
+            logger.info(
+                f"User '{user_email}' deleted successfully by '{request.user.username}'."
+            )
+            return JsonResponse(
+                {"success": True, "message": "User deleted successfully."}
+            )
+        except Account.DoesNotExist:
+            logger.warning(f"User deletion failed: User ID '{user_id}' does not exist.")
+            return JsonResponse(
+                {"success": False, "message": "User does not exist."}, status=404
+            )
+        except Exception as e:
+            logger.error(f"Error deleting user ID '{user_id}': {e}", exc_info=True)
+            return JsonResponse(
+                {"success": False, "message": "Error deleting user."}, status=500
+            )
 
 
-class GetUserView(View):
+class GetUserView(ActiveUserRequiredMixin, View):
     require_staff = True
 
     def get(self, request, user_id, *args, **kwargs):
-        user = get_object_or_404(Account, id=user_id)
-        dob = user.date_of_birth
-        data = {
-            "id": user.id or "",
-            "first_name": user.first_name or "N/A",
-            "last_name": user.last_name or "N/A",
-            "username": user.username or "N/A",
-            "email": user.email or "N/A",
-            "gender": user.gender or "N/A",
-            "country": user.country or "N/A",
-            "agree": user.agree if user.agree is not None else False,
-            "dj": user.date_joined or "N/A",
-            "ll": user.last_login or "N/A",
-            "is_admin": user.is_admin if user.is_admin is not None else False,
-            "usid": user.usid or "N/A",
-            "date_of_birth": dob or "N/A",
-            "dob": {
-                "year": dob.year if dob else "N/A",
-                "month": dob.month if dob else "N/A",
-                "day": dob.day if dob else "N/A",
-            },
-            "full_name": user.full_name() or "N/A",
-            "created_by": user.created_by.username if user.created_by else "N/A",
-        }
-        return JsonResponse(data)
+        try:
+            user = get_object_or_404(Account, id=user_id)
+            dob = user.date_of_birth
+            data = {
+                "id": user.id or "",
+                "first_name": user.first_name or "N/A",
+                "last_name": user.last_name or "N/A",
+                "username": user.username or "N/A",
+                "email": user.email or "N/A",
+                "gender": user.gender or "N/A",
+                "country": user.country or "N/A",
+                "agree": user.agree if user.agree is not None else False,
+                "dj": user.date_joined or "N/A",
+                "ll": user.last_login or "N/A",
+                "is_admin": user.is_admin if user.is_admin is not None else False,
+                "usid": user.usid or "N/A",
+                "date_of_birth": dob or "N/A",
+                "dob": {
+                    "year": dob.year if dob else "N/A",
+                    "month": dob.month if dob else "N/A",
+                    "day": dob.day if dob else "N/A",
+                },
+                "full_name": user.full_name() or "N/A",
+                "created_by": user.created_by.username if user.created_by else "N/A",
+            }
+            logger.info(f"User {user_id} details retrieved successfully.")
+            return JsonResponse(data)
+        except Exception as e:
+            logger.error(f"Error retrieving user {user_id}: {e}", exc_info=True)
+            return JsonResponse({"error": "Contact not found."}, status=404)
 
 
-class SendActivationEmailView(MailUtils, View):
+class SendActivationEmailView(ActiveUserRequiredMixin, MailUtils, View):
+    require_staff = True
+
     def post(self, request, *args, **kwargs):
         user_id = request.POST.get("user_id")
         user = get_object_or_404(Account, id=user_id)
-        if not user.is_active:
-            self.compose_email(request, user)
-            msg = f"Activation link sent to {user.email}."
-        else:
-            msg = f"User {user.username} is already active."
-        return JsonResponse({"success": True, "message": msg})
+        try:
+            if not user.is_active:
+                self.compose_email(request, user)
+                msg = f"Activation link sent to {user.email}."
+                logger.info(f"Activation email sent to {user.email}.")
+                log_user_activity(
+                    request, request.user, f"Activation email sent to {user.email}."
+                )
+
+            else:
+                msg = f"User {user.username} is already active."
+                logger.info(
+                    f"Activation email not sent. User {user.username} is already active."
+                )
+            return JsonResponse({"success": True, "message": msg})
+        except Exception as e:
+            log_user_activity(
+                request,
+                request.user,
+                f"Failed to send activation email to {user.email}: {e}",
+                level="ERROR",
+            )
+
+            logger.error(
+                f"SEND_ACTIVATION_EMAIL: Failed to send activation email to {user.email}: {e}",
+                exc_info=True,
+            )
+            return JsonResponse(
+                {"success": False, "message": "Error sending activation email."},
+                status=500,
+            )
 
 
-class DeactivateAccountView(View):
+class DeactivateAccountView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
     def post(self, request, user_id, *args, **kwargs):
+        _user = request.user
         if not user_id:
             messages.error(request, "User ID is required.")
+            logger.warning(
+                f"DEACTIVATE ACCOUNT: User {user_id} account already deactivated."
+            )
+            log_user_activity(request, _user, "DEACTIVATE account, already deactivated")
         try:
             user = get_object_or_404(Account, id=user_id)
             if not user.is_active:
                 messages.error(request, "User account is already deactivated.")
+                logger.warning(
+                    f"DEACTIVATE ACCOUNT: User {user_id} account already deactivated."
+                )
+                log_user_activity(
+                    request, _user, "DEACTIVATE account, already deactivated"
+                )
             else:
                 user.is_active = False
                 user.save()
                 messages.success(request, "User account deactivated successfully.")
-
+                log_user_activity(
+                    request, _user, "DEACTIVATE account deactivated successfully."
+                )
         except Account.DoesNotExist:
             messages.error(request, "User not found.")
+            logger.error(f"DEACTIVATE_ACCOUNT: User {user_id} not found.")
         except Exception as e:
-            messages.error(request, "An error occurred: {str(e)}")
+            messages.error(request, f"An error occurred: {str(e)}")
+            logger.error(f"DEACTIVATE_ACCOUNT: Error deactivating user {user_id}: {e}")
 
         return redirect("AdminHub:user-list")
 
 
-class ContactListView(FilterView):
+class ContactListView(ActiveUserRequiredMixin, FilterView):
+    require_staff = True
     model = Contact
     context_object_name = "contacts"
     template_name = "ml/contacts.html"
     filterset_class = ContactFilter
     paginate_by = 10
+    ordering = ["-submitted_at"]
+
+    def get(self, request, *args, **kwargs):
+        logger.info("Contact list view accessed.")
+        log_user_activity(request, request.user, "VIEW CONTACT LIST")
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["title_root"] = "Contact List"
+        return context
 
 
-class ContactDetailView(View):
+class ContactDetailView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
     def get(self, request, *args, **kwargs):
         contact_id = kwargs.get("pk")
         try:
@@ -560,12 +1298,19 @@ class ContactDetailView(View):
                 "submitted_at": contact.submitted_at,
                 "user": contact.user.username if contact.user else "Anonymous",
             }
+            logger.info(
+                f"VIEW_CONTACT_DETAIL: Contact details retrieved for ID {contact_id}."
+            )
+            log_user_activity(request, request.user, "VIEW CONTACT DETAIL")
             return JsonResponse(data)
         except Contact.DoesNotExist:
+            logger.warning(f"Contact not found for ID {contact_id}.")
             return JsonResponse({"error": "Contact not found."}, status=404)
 
 
-class DeleteContactsView(View):
+class DeleteContactsView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
     def post(self, request, *args, **kwargs):
         selected_ids = request.POST.getlist("selected_items")
         try:
@@ -573,26 +1318,43 @@ class DeleteContactsView(View):
                 contacts = Contact.objects.filter(id__in=selected_ids)
                 count = contacts.count()
                 contacts.delete()
-                messages.success(request, f"{count} contact(s) deleted successfuly.")
+                messages.success(request, f"{count} contact(s) deleted successfully.")
+                log_user_activity(request, request.user, "DELETE CONTACTS")
                 return JsonResponse({"success": True}, status=200)
             else:
+                logger.warning(request, "DELETE_CONTACTS: No contacts selected.")
                 return JsonResponse(
                     {"success": False, "error": "No contacts selected."}, status=400
                 )
         except Exception as e:
+            logger.error(
+                request,
+                "DELETE_CONTACTS",
+                f"Error deleting contacts: {e}",
+                level="ERROR",
+            )
             return JsonResponse({"success": False, "error": str(e)}, status=400)
 
 
-class ActivityLogListView(FilterView):
+class ActivityLogListView(ActiveUserRequiredMixin, FilterView):
+    require_staff = True
     model = ActivityLog
     context_object_name = "logs"
     template_name = "ml/logs.html"
     filterset_class = ActivityLogFilter
     paginate_by = 10
     ordering = ["-timestamp"]
+    extra_context = {
+        "title_root": "Activity Logs",
+    }
+
+    def get(self, request, *args, **kwargs):
+        log_user_activity(request, request.user, "Activity log list view accessed.")
+        return super().get(request, *args, **kwargs)
 
 
-class LogDetailView(DetailView):
+class LogDetailView(ActiveUserRequiredMixin, DetailView):
+    require_staff = True
     model = ActivityLog
     template_name = "ml/log_detail.html"
     context_object_name = "log"
@@ -600,12 +1362,26 @@ class LogDetailView(DetailView):
     def get_object(self, queryset=None):
         log_id = self.kwargs.get("pk")
         try:
-            return ActivityLog.objects.get(pk=log_id)
+            log = ActivityLog.objects.get(pk=log_id)
+            log_user_activity(
+                self.request,
+                self.request.user,
+                f"Successfully retrieved log with ID: {log_id}",
+            )
+            return log
         except ActivityLog.DoesNotExist:
+            log_user_activity(
+                self.request,
+                self.request.user,
+                f"VIEW LOG DETAIL: Log with ID {log_id} not found.",
+                level="ERROR",
+            )
             raise Http404("Log not found.")
 
 
-class DeleteLogView(View):
+class DeleteLogView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
     def post(self, request, *args, **kwargs):
         selected_ids = request.POST.getlist("selected_items")
         try:
@@ -613,17 +1389,27 @@ class DeleteLogView(View):
                 log = ActivityLog.objects.filter(id__in=selected_ids)
                 count = log.count()
                 log.delete()
-                messages.success(request, f"{count} log(s) deleted successfuly.")
+                messages.success(request, f"{count} log(s) deleted successfully.")
+                log_user_activity(
+                    request,
+                    request.user,
+                    f"DELETE_LOGS: {count} log(s) deleted: {selected_ids}",
+                )
                 return JsonResponse({"success": True}, status=200)
             else:
+                log_user_activity(
+                    request, "DELETE_LOGS" "No log selected for deletion."
+                )
                 return JsonResponse(
                     {"success": False, "error": "No log selected."}, status=400
                 )
         except Exception as e:
+            logger.error(request, "DELETE_LOGS Error deleting logs: {e}", level="ERROR")
             return JsonResponse({"success": False, "error": str(e)}, status=400)
 
 
-class SystemSettingsView(UpdateView):
+class SystemSettingsView(ActiveUserRequiredMixin, UpdateView):
+    require_staff = True
     template_name = "ml/system_settings.html"
 
     def get(self, request, *args, **kwargs):
@@ -632,6 +1418,7 @@ class SystemSettingsView(UpdateView):
 
         email_form = EmailSettingsForm(instance=email_settings)
         general_form = GeneralSettingsForm(instance=general_settings)
+        logger.info("System settings view accessed by user: %s", request.user.username)
 
         return render(
             request,
@@ -649,6 +1436,7 @@ class SystemSettingsView(UpdateView):
         if email_form.is_valid() and general_form.is_valid():
             email_form.save()
             general_form.save()
+            logger.info("System settings updated successfully.")
             return JsonResponse(
                 {"success": True, "message": "Settings updated successfully."}
             )
@@ -657,17 +1445,12 @@ class SystemSettingsView(UpdateView):
                 "email_form_errors": email_form.errors,
                 "general_form_errors": general_form.errors,
             }
+            logger.error(f"Failed to update settings: {errors}")
             return JsonResponse({"success": False, "errors": errors})
 
 
-from django.http import JsonResponse
-from django.core.paginator import Paginator
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.views import APIView
-from rest_framework.response import Response
-
-
-class PredictionView(HelpResponse, View):
+class PredictionView(ActiveUserRequiredMixin, HelpResponse, View):
+    require_staff = True
     template_name = "ml/measurement.html"
 
     def get_step_value(self, max_value):
@@ -875,29 +1658,33 @@ class PredictionView(HelpResponse, View):
         response_instance.save()
 
     def post(self, request, *args, **kwargs):
-        """
-        Handle POST request, process input data, and save the prediction or handle other logic.
-        """
         data = json.loads(request.body)
         if data.get("is_save_prediction"):
-            print("========is_save_prediction=========")
-            patient = data.get("user_id")
-            input_dict = data.get("slider_data")
+            try:
+                patient = data.get("user_id")
+                input_dict = data.get("slider_data")
 
-            patient = get_object_or_404(Account, pk=patient)
+                patient = get_object_or_404(Account, pk=patient)
 
-            # # Generate predictions and related data
-            context = self.populateData(input_dict)
+                # Generate predictions and related data
+                context = self.populateData(input_dict)
 
-            # Extract necessary data for saving the prediction
-            probabilities = context["probabilities"]
-            risk_level, risk_score = self.make_prediction(probabilities)
+                # Extract necessary data for saving the prediction
+                probabilities = context["probabilities"]
+                risk_level, risk_score = self.make_prediction(probabilities)
 
-            # Save the prediction using the new save_prediction method
-            self.save_prediction(
-                patient, risk_level, risk_score, probabilities, input_dict
-            )
-            return JsonResponse({"success": True})
+                # Save the prediction using the new save_prediction method
+                self.save_prediction(
+                    patient, risk_level, risk_score, probabilities, input_dict
+                )
+                logger.info(
+                    f"Prediction saved successfully for user ID: {patient.id} by user: {request.user.username}"
+                )
+                log_user_activity(request, request.user, "Saved a prediction")
+                return JsonResponse({"success": True})
+            except Exception as e:
+                logger.error(f"Error saving prediction: {e}", exc_info=True)
+                return JsonResponse({"success": False, "error": str(e)})
         else:
             # Handle other POST logic here (e.g., previous logic that was already in post())
             input_dict = data.get("slider_data")
@@ -911,6 +1698,7 @@ class PredictionView(HelpResponse, View):
             {
                 "sliders": sliders,
                 "filter": AccountFilter(),
+                "title_root": "Measurement",
             }
         )
         return render(request, self.template_name, context)
@@ -934,7 +1722,6 @@ class PredictionView(HelpResponse, View):
         """
         chart_data = self.get_radar_chart(input_dict)
         probabilities, prediction = self.add_predictions(input_dict)
-        print("Probabilities: ", probabilities)
         probability_benign = probabilities[0][0]
         probability_malignant = probabilities[0][1]
 
@@ -955,49 +1742,39 @@ class PredictionView(HelpResponse, View):
         return context
 
 
-class AccountListAPIView(APIView):
+class AccountListAPIView(ActiveUserRequiredMixin, APIView):
+    require_staff = True
     filter_backends = [DjangoFilterBackend]
     filterset_class = AccountFilter
 
     def get(self, request, *args, **kwargs):
-        page_number = int(request.GET.get("page", 1))
-        filterset = AccountFilter(
-            request.GET, queryset=Account.objects.all().order_by("-id")
-        )
-        paginator = Paginator(filterset.qs, 5)
+        try:
+            page_number = int(request.GET.get("page", 1))
+            filterset = AccountFilter(
+                request.GET, queryset=Account.objects.all().order_by("-id")
+            )
+            paginator = Paginator(filterset.qs, 5)
 
-        page = paginator.get_page(page_number)
-        users = page.object_list.values(
-            "id", "username", "email", "first_name", "last_name"
-        )
-        return JsonResponse(
-            {
-                "users": list(users),
-                "previous": (
-                    page.previous_page_number() if page.has_previous() else None
-                ),
-                "next": page.next_page_number() if page.has_next() else None,
-                "total_pages": paginator.num_pages,
-            }
-        )
+            page = paginator.get_page(page_number)
+            users = page.object_list.values(
+                "id", "username", "email", "first_name", "last_name"
+            )
+            log_user_activity(request, request.user, "Accessed account list")
+            logger.info(f"User {request.user.username} accessed the account list.")
 
-
-from django.http import HttpResponse, Http404
-from django.views.generic import View
-from io import BytesIO
-import base64
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Table,
-    TableStyle,
-    Spacer,
-    Image,
-)
-import plotly.graph_objects as go
+            return JsonResponse(
+                {
+                    "users": list(users),
+                    "previous": (
+                        page.previous_page_number() if page.has_previous() else None
+                    ),
+                    "next": page.next_page_number() if page.has_next() else None,
+                    "total_pages": paginator.num_pages,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error in AccountListAPIView: {e}")
+            return JsonResponse({"error": "Something went wrong."}, status=500)
 
 
 class GenerateReportView(ActiveUserRequiredMixin, HelpResponse, View):
