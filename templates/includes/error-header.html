@@ -1,0 +1,12 @@
+{% load static %}
+{% include 'includes/root-header.html' %}
+<script>
+    // Apply the stored theme before the page renders
+    document.addEventListener("DOMContentLoaded", function() {
+    var storedTheme = localStorage.getItem('theme-skin') || 'light-skin'; 
+    document.body.classList.add(storedTheme);
+
+    var storedLayout = localStorage.getItem('theme') || 'theme-primary';
+    document.body.classList.add(storedLayout);
+    });
+</script>
