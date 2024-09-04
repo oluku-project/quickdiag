@@ -1,0 +1,59 @@
+<!-- User List Modal -->
+<div class="modal fade" id="userListModal" tabindex="-1" aria-labelledby="userListModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userListModalLabel">Select a User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Filter Form -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary">
+                        <i class="fa fa-filter"></i> 
+                        <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#userFilterForm" aria-expanded="true">
+                                        Filter Users
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <form id="userFilterForm" class="collapse">
+                            <!-- Include filter fields here -->
+                            <div class="row">
+                                {% for field in filter.form %}
+                                    <div class="form-group col-md-3">
+                                        {{field.as_field_group}}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="col-md-12 text-center mt-3">
+                                <label>&nbsp;</label>
+                                <button type="reset" class="btn btn-warning btn-block pr-40"><i class="fa fa-fw fa-rotate-left"></i> Reset</button>
+                                <button type="submit" class="btn btn-primary btn-block"><i class="fa fa-search"></i> Search</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- User list will be populated here -->
+                <div id="userListContainer">
+                    <!-- Loading spinner or initial placeholder -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                    </ul>
+                </nav>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button id="selectUserButton" type="button" class="btn btn-primary">Select User</button>
+            </div>
+        </div>
+    </div>
+</div>
