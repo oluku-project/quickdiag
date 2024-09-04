@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary"><i class="fa fa-users"></i> User Management</h2>
+        <button class="btn btn-success" 
+        data-bs-toggle="modal" data-bs-target="#userModal" onclick="openModal()">
+            <i class="fa fa-plus"></i> Add New User
+        </button>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary">
+            <i class="fa fa-filter"></i> 
+            <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="true">
+                            Filter Users
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{% url 'AdminHub:user-list' %}" id="filterForm" class="collapse">
+                <!-- Include filter fields here -->
+                 <div class="row">
+                    {% for field in filter.form %}
+                        <div class="form-group col-md-3">
+                            {{field.as_field_group}}
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="col-md-12 text-center mt-3">
+                    <label>&nbsp;</label>
+                    <button onclick="clearFilters('filterForm')"class="btn btn-warning btn-block pr-40"><i class="fa fa-fw fa-rotate-left"></i> Reset</button>
+                    <button type="submit" class="btn btn-primary btn-block"><i class="fa fa-search"></i> Search</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- User List Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">Full Name</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Country</th>
+                            <th scope="col">Gender</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Date Joined</th>
+                            <th scope="col" class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in users %}
+                        <tr>
+                            <th scope="row">{{ forloop.counter|stringformat:"02d" }}</th>
+                            <td>{{ item.full_name }}</td>
+                            <td>{{ item.email }}</td>
+                            <td>{{ item.get_country_display }}</td>
+                            <td>{{ item.get_gender_display }}</td>
+                            <td>
+                                {% if item.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.date_joined|date:"M d, Y" }}</td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-info" 
+                                data-bs-toggle="modal"
+                                data-bs-target="#viewUserModal"
+                                onclick="openModal('{{ item.id }}',true)"
+                                >
+                                    <i class="fa fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-warning" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#userModal" 
+                                onclick="openModal('{{ item.id }}')"
+                                >
+                                    <i class="fa fa-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger"
+                                    data-bs-toggle="modal" data-bs-target="#deleteModal" onclick="confirmDelete('{{ item.id }}','{{ item.full_name }}')"
+                                >
+                                <i class="fa fa-trash"></i>
+                                </button>
+                                <button class="btn btn-sm btn-success"
+                                    data-bs-toggle="modal" data-bs-target="#confirmActivationModal" onclick="confirmDelete('{{ item.id }}','{{ item.full_name }}',true)" title="Authorize"
+                                >
+                                    <i class="fa fa-envelope"></i>
+                                </button>
+                                
+                                <form method="post" action="{% url 'AdminHub:deactivate_account' item.pk %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button class="btn btn-{% if item.is_active %}secondary{% else %}secondary{% endif %} btn-sm" title="{% if item.is_active %}Deactivate {% else %}Deactivated{% endif %}">
+                                    {% if item.is_active %}
+                                        <i class="fa fa-user"></i> 
+                                    {% else %}
+                                        <i class="fa fa-user-o"></i> 
+                                    {% endif %}
+                                </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center">No users available.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% if users %}
+        <p class="mt-40 fs-5">
+            Total users found: {{ users|length }}
+        </p>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% include 'includes/pagenator.html' %}
+    <!-- Modal -->
+    {% include 'ml/includes/user_list_modal.html' %}
+        
+</div>
+
+{% endblock %}
+{% block scripts %}
+    {% include 'ml/includes/user_list_script.html' %}
+{% endblock scripts %}

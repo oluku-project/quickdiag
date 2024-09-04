@@ -10,6 +10,8 @@ from django.core.mail import EmailMultiAlternatives
 class UserTypes:
     USER_GROUP = "Users"
     DOCTOR_GROUP = "Professional Doctors"
+
+
 MONTHS = [
     (1, "January"),
     (2, "February"),
@@ -78,6 +80,10 @@ class MailUtils:
                 "domain": current_site.domain,
                 "uid": urlsafe_base64_encode(force_bytes(user.pk)),
                 "token": default_token_generator.make_token(user),
+                "site_name": request.site_name,
+                "site_company": request.site_company,
+                "site_tagline": request.site_tagline,
+                "site_address": request.site_address,
             },
         )
 

@@ -2,9 +2,59 @@ from django.contrib import admin
 
 from patients.models import *
 
-# Register your models here.
-admin.site.register(QuestionnaireResponse)
-admin.site.register(Response)
+from django.urls import reverse
+from django.utils.html import format_html
+
+
+@admin.register(QuestionnaireResponse)
+class QuestionnaireResponseAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "created_by",
+        "progress",
+        "submission_date",
+        "updated_date",
+        "state",
+        "score",
+        "result_display",
+    ]
+    search_fields = ["user__username", "created_by__username", "state"]
+    list_filter = ["state", "submission_date", "progress"]
+    list_per_page = 15
+    ordering = ["-submission_date"]
+
+    def score(self, obj):
+        return obj.score
+
+    score.admin_order_field = "score"
+    score.short_description = "Score"
+
+    def result_display(self, obj):
+        result = obj.result
+        if result:
+            url = reverse("admin:prediction_predictionresult_change", args=[result.id])
+            return format_html('<a href="{}">View Result</a>', url)
+        return "No result"
+
+    result_display.admin_order_field = "result"
+    result_display.short_description = "Result"
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.select_related("user", "created_by")
+
+
+@admin.register(Response)
+class ResponseAdmin(admin.ModelAdmin):
+    list_display = ["questionnaire_response", "question_key"]
+    search_fields = ["question_key", "questionnaire_response__user__username"]
+    list_filter = ["questionnaire_response"]
+    list_per_page = 20
+    ordering = ["questionnaire_response", "question_key"]
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.select_related("questionnaire_response")
 
 
 class PredictionResultAdmin(admin.ModelAdmin):
@@ -19,6 +69,7 @@ class PredictionResultAdmin(admin.ModelAdmin):
         "dob",
         "deleted",
     )
+    list_per_page = 10
     list_filter = ("deleted",)
     actions = ["delete_selected", "restore_selected"]
 
@@ -54,11 +105,50 @@ admin.site.register(PredictionResult, PredictionResultAdmin)
 
 @admin.register(Feedback)
 class FeedbackAdmin(admin.ModelAdmin):
-    list_display = ("user", "rating", "submitted_at")
-    search_fields = ("user", "rating", "message")
+    list_display = ("get_user", "rating", "show", "submitted_at", "view_result_link")
+    list_filter = ("rating", "show", "submitted_at")
+    search_fields = ("result__user__username", "rating", "message")
+    list_editable = ("show",)
+    list_per_page = 10
+    ordering = ("-submitted_at",)
+    readonly_fields = ("submitted_at",)
+
+    def get_user(self, obj):
+        return obj.result.user.username
+
+    get_user.short_description = "User"
+
+    def view_result_link(self, obj):
+        if obj.result:
+            url = f"/admin/patients/predictionresult/{obj.result.id}/change/"
+            return format_html('<a href="{}">View Prediction</a>', url)
+        return "No Result"
+
+    view_result_link.short_description = "Prediction Result"
+
+    def save_model(self, request, obj, form, change):
+        if obj.show:
+            count = Feedback.objects.filter(show=True).count()
+            if count >= 3 and not obj.pk:
+                self.message_user(
+                    request,
+                    "Cannot have more than 3 feedback items marked to show.",
+                    level="error",
+                )
+                obj.show = False
+        super().save_model(request, obj, form, change)
+
+    def has_delete_permission(self, request, obj=None):
+        # Custom logic to prevent deletion based on condition
+        return super().has_delete_permission(request, obj)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("result__user")
 
 
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
     list_display = ("name", "email", "submitted_at")
     search_fields = ("name", "email", "message")
+    list_per_page = 10

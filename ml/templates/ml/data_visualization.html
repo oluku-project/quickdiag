@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="content admin-prediction-template">
+  <div class="container-fluid my-5">
+      <div class="row">
+          <div class="col text-center mb-4">
+              <h2 class="display-4 text-primary">Breast Cancer Prediction Dashboard</h2>
+              <p class="lead text-muted">Visualize and filter prediction results effortlessly.</p>
+          </div>
+      </div>
+
+      <!-- Filter Section -->
+      <div class="row mb-4">
+          <div class="col-12">
+              <div class="card shadow-lg">
+                  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                      <h5 class="mb-0"><i class="fa fa-filter"></i> Prediction Result Filters</h5>
+                      <button class="btn btn-link text-white" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="true">
+                          <i class="fa fa-chevron-down text-primary"></i>
+                      </button>
+                  </div>
+                  <div id="filterForm" class="collapse">
+                      <div class="card-body">
+                          <form id="filter-form" method="GET">
+                              <div class="row g-3">
+                                  {% for field in filter.form %}
+                                      <div class="col-md-4">
+                                          {{ field.as_field_group }}
+                                      </div>
+                                  {% endfor %}
+                                  <div class="col-md-12 text-center mt-3">
+                                      <button id="clear-filters" class="waves-effect waves-light btn btn-outline btn-warning btn-lg me-5">
+                                          <i class="fa fa-fw fa-rotate-left"></i> Reset
+                                      </button>
+                                      <button type="submit" class="btn btn-primary btn-lg">
+                                          <i class="fa fa-search"></i> Apply Filters
+                                      </button>
+                                 </div>
+                              </div>
+                          </form>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="row">
+        <!-- Mixed Chart Card -->
+        <div class="col-12 ">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Comparative Risk Analysis</h4>
+                    <p class="card-info">Compares mean, standard error, and worst-case scenarios for risk scores in a mixed chart format.</p>
+                </div>
+                <div class="card-body">
+                    <div id="apexcharts-mixed">{{mixed_chart_html|safe}}</div>
+                </div>
+            </div>
+        </div>
+        <!-- Line Chart Card -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Average Risk Score Over Time</h4>
+                    <p class="card-info">Displays the average risk score for predictions over selected time intervals.</p>
+                </div>
+                <div class="card-body">
+                    <div id="apexcharts-line">{{line_chart_html|safe}}</div>
+                </div>
+            </div>
+        </div>
+        <!-- Pie Chart Card -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Risk Score Composition</h4>
+                    <p class="card-info">Breaks down the composition of risk scores into segments, illustrating the proportion of each segment.</p>
+                </div>
+                <div class="card-body">
+                    <div id="apexcharts-pie">{{ pie_chart_html|safe }}</div>
+                </div>
+            </div>
+        </div>
+        <!-- Bar Chart Card -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Risk Score Distribution by Category</h4>
+                    <p class="card-info">Shows the distribution of risk scores across different categories, providing insights into risk concentration.</p>
+                </div>
+                <div class="card-body">
+                    <div id="apexcharts-bar">{{bar_chart_html|safe}}</div>
+                </div>
+            </div>
+        </div>
+        <!-- Radar Chart Card -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Multi-Factor Risk Assessment</h4>
+                    <p class="card-info">Assesses multiple risk factors, showing how each factor contributes to overall risk in a radar format.</p>
+                </div>
+                <div class="card-body">
+                    <div id="apexcharts-radar">{{ radar_chart_html|safe }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Histogram Chart Card -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Age Distribution of Risk Records</h4>
+                    <p class="card-info">Displays the age distribution of individuals in the dataset, highlighting the number of records in each age group.</p>
+                </div>
+                <div class="card-body">
+                    <div id="apexcharts-histogram">{{ histogram_chart_html|safe }}</div>
+                </div>
+            </div>
+        </div>
+        <!-- Area Chart Card -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Risk Score Trends by Date</h4>
+                    <p class="card-info">Visualizes the trend of risk scores over specific dates, highlighting variations in risk levels.</p>
+                </div>
+                <div class="card-body">
+                    <div id="apexcharts-area">{{ area_chart_html|safe }}</div>
+                </div>
+            </div>
+        </div>
+</div>
+
+  </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+    {% include 'ml/includes/data_visualization-script.html' %}
+{% endblock scripts %}
+
+     

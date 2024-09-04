@@ -4,7 +4,7 @@
             <!-- About Section -->
             <div class="col-md-3 col-lg-3 col-xl-3 mx-auto mt-3">
                 <h5 class="text-uppercase mb-4 font-weight-bold">About Us</h5>
-                <p>We are dedicated to providing accurate and efficient prediction results to improve health outcomes through advanced analytics and technology.</p>
+                <p>{{site_description}}</p>
             </div>
             <!-- Products Section -->
             <div class="col-md-2 col-lg-2 col-xl-2 mx-auto mt-3">
@@ -37,16 +37,16 @@
             <!-- Contact Section -->
             <div class="col-md-4 col-lg-3 col-xl-3 mx-auto mt-3">
                 <h5 class="text-uppercase mb-4 font-weight-bold">Contact</h5>
-                <p><i class="fa fa-home me-3"></i> 123 Main Street, Paraku Estate, XEZ</p>
-                <p><i class="fa fa-envelope me-3"></i> info.bcp.@gmail.com</p>
-                <p><i class="fa fa-phone me-3"></i> (123) 456-7890</p>
+                <p><i class="fa fa-home me-3"></i> {{site_address}}</p>
+                <p><i class="fa fa-envelope me-3"></i> {{site_contact_email}}</p>
+                <p><i class="fa fa-phone me-3"></i> {{site_telephone}} </p>
             </div>
         </div>
         <hr class="mb-4">
         <!-- Social Media Section -->
         <div class="row align-items-center">
             <div class="col-md-7 col-lg-8">
-                <p class="text-center text-md-start">&copy; {% now 'Y' %} Zila Tech. All rights reserved.</p>
+                <p class="text-center text-md-start">&copy; {% now 'Y' %} {{site_company}}. {{site_tagline}}</p>
             </div>
             <div class="col-md-5 col-lg-4">
                 <div class="text-center text-md-end">

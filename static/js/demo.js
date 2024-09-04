@@ -108,6 +108,12 @@ $(function () {
         $sidebar.addClass('dark-skin');
         store('theme-skin', 'dark-skin');
       }
+      if($('.admin-prediction-template').length > 0){
+         updateChartBasedOnBg();
+
+         // Render the radar chart with the current data and theme
+         updateRadarChart();
+      }
     });
 
     var skin = get('theme-skin');

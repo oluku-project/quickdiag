@@ -101,7 +101,7 @@
                 <div class="box ribbon-box pull-up">
                     <div class="box-header text-center">
                         <h5 class="box-title">
-                            Prediction Result - {{ result.timestamp|date:"F Y" }}
+                            Result - {{ result.timestamp|date:"F j, Y" }}
                         </h5>
                     </div>
                     <div class="box-body">
@@ -138,7 +138,8 @@
                     </div>
                     <div class="box-footer text-end">
                         <button onclick="navigateToUrl(this)"
-                            data-url="{% url 'detailed_result' result.pk %}" 
+                            data-url="{% if user.is_staff %}{% url 'AdminHub:detailed_result' result.pk %}{% else %}{% url 'detailed_result' result.pk %}{% endif %}
+                                " 
                             class="btn btn-primary">View Details
                         </button>
                         <button class="btn btn-danger" 

@@ -1,0 +1,101 @@
+<script>
+  let contactIdToDelete = null;
+  let is_Testimonial = false;
+  function confirmDelete(contactId) {
+    contactIdToDelete = contactId
+  }
+  function populateContactModal(data,isTestimonial=false) {
+    const modalContent = `
+      <h4 id="contact-name" class="fw-bold">${data.user}</h4>
+      <p id="contact-email" class="text-muted mb-0">${data.email}</p>
+      <small id="contact-submitted-at" class="text-muted"><strong>Submitted on:</strong> ${data.submitted_at}</small>
+      <hr />
+      <div class="row mb-3">
+        <div class="col-12">
+          <h5 class="fw-bold">${is_Testimonial?'Rated':'Subject'}:</h5>
+          <p id="contact-subject">${data.subject}</p>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-12">
+          <h5 class="fw-bold">Message:</h5>
+          <p id="contact-message">${data.message}</p>
+        </div>
+      </div>
+    `;
+    $('#contactContainer').html(modalContent)
+  }
+  function openModal(pk,condition = false) {
+    is_Testimonial = condition
+    url_1 = "{% url 'AdminHub:testimonial_detail' 1 %}".replace('1', pk);
+    url_2 = "{% url 'AdminHub:contact_detail' 1 %}".replace('1', pk);
+    if (pk) {
+      $.ajax({
+        url: condition?url_1:url_2,
+        method: 'GET',
+        success: function (data) {
+            populateContactModal(data)
+        },
+        error: function (xhr) {
+          showToast('Error', `${is_Testimonial?'Testimonial':'Contact'} not found`, 'error');
+        },
+      });
+    } else {
+
+    }
+  }
+  function deleteContact() {
+      var selectedItems = $('input[name="selected_items"]:checked');
+      if (selectedItems.length === 0) {
+          $('#deleteConfirmationModal').modal('hide');
+          showToast('Error', "Please select at least one item to delete.",'error');
+          return;
+      }
+      $.ajax({
+            url: $("#delete-form").attr("action"),
+            method: "POST",
+            data: $("#delete-form").serialize(),
+            success: function(response) {
+                if (response.success) {
+                    location.reload(); 
+                } else {
+                  $('#deleteConfirmationModal').modal('hide');
+                  showToast('Success', "An error occurred: " + response.error, 'success');
+                }
+            },
+            error: function(xhr) {
+            $('#deleteConfirmationModal').modal('hide');
+            showToast('Error', "An error occurred while deleting the selected item(s).", 'error');
+            }
+        });
+
+
+  }
+
+  function toggleFeedbackShow(feedbackId, element) {
+      url = "{% url 'AdminHub:toggle-feedback-show' 1 %}".replace('1', feedbackId);
+      $.ajax({
+          url: url,
+          method: 'POST',
+          data: {
+              'csrfmiddlewaretoken': $('input[name="csrfmiddlewaretoken"]').val()
+          },
+          success: function(response) {
+              if (response.success) {
+                  if (response.new_status) {
+                    $(element).removeClass('bg-info').addClass('bg-success').text('Public');
+                  } else {
+                    $(element).removeClass('bg-success').addClass('bg-info').text('Private');
+                  }
+                  showToast('Success', response.message, 'success');
+              } else {
+                  showToast('Error', "An error occurred: " + response.error, 'error');
+              }
+          },
+          error: function(xhr) {
+              showToast('Error', "An error occurred while toggling the show status.", 'error');
+          }
+      });
+  }
+
+</script>

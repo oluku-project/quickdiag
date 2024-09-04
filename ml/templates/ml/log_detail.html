@@ -1,0 +1,22 @@
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-4">
+            <h6><strong>User:</strong> {{ log.user.email }}</h6>
+            <h6><strong>Action:</strong> {{ log.action }}</h6>
+        </div>
+        <div class="col-md-4">
+            <h6><strong>Timestamp:</strong> {{ log.timestamp|date:"Y-m-d H:i:s" }}</h6>
+            <h6><strong>IP Address:</strong> {{ log.ip_address }}</h6>
+        </div>
+        <div class="col-md-4">
+            <h6><strong>User Agent:</strong> {{ log.user_agent }}</h6>
+        </div>
+    </div>
+    <hr>
+    <div class="row">
+        <div class="col-12">
+            <h6><strong>Additional Information:</strong></h6>
+            <p>Include any additional details or notes related to this log action here.</p>
+        </div>
+    </div>
+</div>

@@ -1,4 +1,172 @@
+import pickle5 as pickle
+
+QUESTIONS_2 = [
+    # Mean Features
+    ("Do you feel a noticeable lump in your breast?", "radius_mean", 15.5),
+    ("Does the lump feel rough to the touch?", "texture_mean", 20.0),
+    ("Is the lump's edge easy to feel when you touch it?", "perimeter_mean", 100.0),
+    (
+        "Does the lump take up a significant amount of space in your breast?",
+        "area_mean",
+        800.0,
+    ),
+    ("Does the lump feel bumpy or uneven?", "smoothness_mean", 0.10),
+    ("When you press the lump, does it feel tight and firm?", "compactness_mean", 0.12),
+    ("Does the lump have any inward curves or indentations?", "concavity_mean", 0.15),
+    (
+        "Do you notice any small dimples or dents on the lump?",
+        "concave points_mean",
+        0.08,
+    ),
+    ("Does the lump seem to have an uneven shape?", "symmetry_mean", 0.19),
+    ("Does the lump have an irregular shape?", "fractal_dimension_mean", 0.07),
+    # Standard Error (SE) Features
+    (
+        "Does the lump's size seem to change when you touch different areas?",
+        "radius_se",
+        0.35,
+    ),
+    ("Does the lump's texture feel different in some spots?", "texture_se", 1.5),
+    ("Does the edge of the lump feel different in some places?", "perimeter_se", 3.0),
+    ("Does the lump's size feel different when you press on it?", "area_se", 50.0),
+    (
+        "Does the lump's surface feel smoother in some areas and bumpier in others?",
+        "smoothness_se",
+        0.009,
+    ),
+    ("Does the lump feel more firm in some areas than others?", "compactness_se", 0.04),
+    (
+        "Does the lump's shape seem to curve inwards more in some spots?",
+        "concavity_se",
+        0.05,
+    ),
+    (
+        "Are the small dimples or dents on the lump more noticeable in some areas?",
+        "concave points_se",
+        0.02,
+    ),
+    (
+        "Does the shape of the lump seem to vary depending on where you touch it?",
+        "symmetry_se",
+        0.03,
+    ),
+    (
+        "Does the lump's shape feel more complicated in some areas?",
+        "fractal_dimension_se",
+        0.004,
+    ),
+    # Worst Features
+    ("Has the lump ever felt particularly large?", "radius_worst", 20.0),
+    ("Has the lump ever felt rougher than usual?", "texture_worst", 30.0),
+    (
+        "Has the edge of the lump ever felt very distinct and easy to trace?",
+        "perimeter_worst",
+        120.0,
+    ),
+    (
+        "Has the lump ever seemed to take up a lot of space in your breast?",
+        "area_worst",
+        1500.0,
+    ),
+    ("Has the lump ever felt very uneven or bumpy?", "smoothness_worst", 0.16),
+    ("Has the lump ever felt particularly firm or hard?", "compactness_worst", 0.50),
+    ("Has the lump ever had deep indentations or curves?", "concavity_worst", 0.60),
+    (
+        "Have you ever noticed a lot of small dimples or dents on the lump?",
+        "concave points_worst",
+        0.18,
+    ),
+    ("Has the lump ever felt very irregular in shape?", "symmetry_worst", 0.35),
+    (
+        "Has the lump ever had a very complicated or irregular shape?",
+        "fractal_dimension_worst",
+        0.09,
+    ),
+]
 QUESTIONS = [
+    # Mean Features
+    ("Do you feel a noticeable lump in your breast?", "radius_mean", 12.0),
+    ("Does the lump feel rough to the touch?", "texture_mean", 18.0),
+    ("Is the lump's edge easy to feel when you touch it?", "perimeter_mean", 85.0),
+    (
+        "Does the lump take up a significant amount of space in your breast?",
+        "area_mean",
+        500.0,
+    ),
+    ("Does the lump feel bumpy or uneven?", "smoothness_mean", 0.1),
+    ("When you press the lump, does it feel tight and firm?", "compactness_mean", 0.2),
+    ("Does the lump have any inward curves or indentations?", "concavity_mean", 0.2),
+    (
+        "Do you notice any small dimples or dents on the lump?",
+        "concave points_mean",
+        0.1,
+    ),
+    ("Does the lump seem to have an uneven shape?", "symmetry_mean", 0.2),
+    ("Does the lump have an irregular shape?", "fractal_dimension_mean", 0.06),
+    # Standard Error (SE) Features
+    (
+        "Does the lump's size seem to change when you touch different areas?",
+        "radius_se",
+        0.3,
+    ),
+    ("Does the lump's texture feel different in some spots?", "texture_se", 0.9),
+    ("Does the edge of the lump feel different in some places?", "perimeter_se", 3.0),
+    ("Does the lump's size feel different when you press on it?", "area_se", 20.0),
+    (
+        "Does the lump's surface feel smoother in some areas and bumpier in others?",
+        "smoothness_se",
+        0.01,
+    ),
+    ("Does the lump feel more firm in some areas than others?", "compactness_se", 0.03),
+    (
+        "Does the lump's shape seem to curve inwards more in some spots?",
+        "concavity_se",
+        0.03,
+    ),
+    (
+        "Are the small dimples or dents on the lump more noticeable in some areas?",
+        "concave points_se",
+        0.015,
+    ),
+    (
+        "Does the shape of the lump seem to vary depending on where you touch it?",
+        "symmetry_se",
+        0.02,
+    ),
+    (
+        "Does the lump's shape feel more complicated in some areas?",
+        "fractal_dimension_se",
+        0.005,
+    ),
+    # Worst Features
+    ("Has the lump ever felt particularly large?", "radius_worst", 18.0),
+    ("Has the lump ever felt rougher than usual?", "texture_worst", 25.0),
+    (
+        "Has the edge of the lump ever felt very distinct and easy to trace?",
+        "perimeter_worst",
+        120.0,
+    ),
+    (
+        "Has the lump ever seemed to take up a lot of space in your breast?",
+        "area_worst",
+        800.0,
+    ),
+    ("Has the lump ever felt very uneven or bumpy?", "smoothness_worst", 0.15),
+    ("Has the lump ever felt particularly firm or hard?", "compactness_worst", 0.25),
+    ("Has the lump ever had deep indentations or curves?", "concavity_worst", 0.3),
+    (
+        "Have you ever noticed a lot of small dimples or dents on the lump?",
+        "concave points_worst",
+        0.12,
+    ),
+    ("Has the lump ever felt very irregular in shape?", "symmetry_worst", 0.3),
+    (
+        "Has the lump ever had a very complicated or irregular shape?",
+        "fractal_dimension_worst",
+        0.08,
+    ),
+]
+QUESTIONS_1 = [
     (
         "Do you feel a lump in your breast?",
         "radius_mean",
@@ -150,7 +318,6 @@ QUESTIONS = [
         0.09,
     ),
 ]
-
 CATEGORIES = [
     "Lump in Breast",
     "Pain in Armpit/Breast",
@@ -539,12 +706,328 @@ RATE_CHOICES = [
     (4, "Good"),
     (5, "Excellent"),
 ]
-
+SLIDER_LABELS = [
+    ("Radius (mean)", "radius_mean"),
+    ("Texture (mean)", "texture_mean"),
+    ("Perimeter (mean)", "perimeter_mean"),
+    ("Area (mean)", "area_mean"),
+    ("Smoothness (mean)", "smoothness_mean"),
+    ("Compactness (mean)", "compactness_mean"),
+    ("Concavity (mean)", "concavity_mean"),
+    ("Concave points (mean)", "concave points_mean"),
+    ("Symmetry (mean)", "symmetry_mean"),
+    ("Fractal dimension (mean)", "fractal_dimension_mean"),
+    ("Radius (se)", "radius_se"),
+    ("Texture (se)", "texture_se"),
+    ("Perimeter (se)", "perimeter_se"),
+    ("Area (se)", "area_se"),
+    ("Smoothness (se)", "smoothness_se"),
+    ("Compactness (se)", "compactness_se"),
+    ("Concavity (se)", "concavity_se"),
+    ("Concave points (se)", "concave points_se"),
+    ("Symmetry (se)", "symmetry_se"),
+    ("Fractal dimension (se)", "fractal_dimension_se"),
+    ("Radius (worst)", "radius_worst"),
+    ("Texture (worst)", "texture_worst"),
+    ("Perimeter (worst)", "perimeter_worst"),
+    ("Area (worst)", "area_worst"),
+    ("Smoothness (worst)", "smoothness_worst"),
+    ("Compactness (worst)", "compactness_worst"),
+    ("Concavity (worst)", "concavity_worst"),
+    ("Concave points (worst)", "concave points_worst"),
+    ("Symmetry (worst)", "symmetry_worst"),
+    ("Fractal dimension (worst)", "fractal_dimension_worst"),
+]
+PROBABILITY_SUMMARIES = [
+    {
+        "range": "0% - 10% Malignancy (90% - 100% Benign)",
+        "summary": (
+            "According to medical analysis, the tumor is highly likely to be benign. As a result, the necessity for additional invasive diagnostic procedures is minimal. It is recommended to consider routine follow-up imaging, such as mammography or ultrasound, to monitor any potential changes in the tumor."
+        ),
+        "recommendation": "Scheduled monitoring and regular check-ups are recommended. No immediate treatment is necessary.",
+    },
+    {
+        "range": "11% - 20% Malignancy (80% - 89% Benign)",
+        "summary": (
+            "The tumor is highly likely to be benign. Although the probability of malignancy is low, it is advisable to conduct a confirmatory test, such as a core needle biopsy or advanced imaging, in order to rule out malignancy. Subsequent steps should be determined based on the results of the imaging."
+        ),
+        "recommendation": "Kindly consider arranging a follow-up appointment for a biopsy or advanced imaging to confirm the diagnosis.",
+    },
+    {
+        "range": "21% - 30% Malignancy (70% - 79% Benign)",
+        "summary": (
+            "The observed tumor presents a relatively high probability of being benign. However, the moderate likelihood of malignancy indicates the necessity for further assessment. It is recommended to proceed with diagnostic investigations, including a biopsy, to establish the benign nature of the tumor or identify potential early-stage malignancy."
+        ),
+        "recommendation": "Proceed with the biopsy and follow-up with imaging for a more definitive diagnosis.",
+    },
+    {
+        "range": "31% - 40% Malignancy (60% - 69% Benign)",
+        "summary": (
+            "There is a discernible equilibrium between the probability of benign and malignant conditions, underscoring the need for a comprehensive evaluation. A biopsy is recommended to ascertain the nature of the lesion, and an exploration of treatment options is warranted in the event of confirmed malignancy."
+        ),
+        "recommendation": "Please ensure comprehensive diagnostic testing is conducted, which includes biopsy and staging.",
+    },
+    {
+        "range": "41% - 50% Malignancy (50% - 59% Benign)",
+        "summary": (
+            "The tumor presents a near-equal probability of being either benign or malignant. This nuanced situation necessitates prompt diagnostic assessment, including a biopsy. Decisions regarding the clinical course should be made in accordance with the biopsy results and may involve intervention based on subsequent findings."
+        ),
+        "recommendation": "Immediate diagnostic evaluation, including a biopsy, and potential early intervention are recommended.",
+    },
+    {
+        "range": "51% - 60% Malignancy (40% - 49% Benign)",
+        "summary": (
+            "The tumor exhibits a slightly higher likelihood of being malignant. It is imperative to promptly undertake diagnostic procedures, including imaging and biopsy, to definitively determine the malignancy status. Subsequent treatment options, such as surgery or chemotherapy, may be necessary, contingent upon the confirmed diagnosis."
+        ),
+        "recommendation": "Please proceed with conducting a diagnostic workup and carefully consider the available treatment options.",
+    },
+    {
+        "range": "61% - 70% Malignancy (30% - 39% Benign)",
+        "summary": (
+            "The findings indicate a high probability of malignancy. Prompt diagnostic testing is essential for early detection. It is imperative to promptly consider a comprehensive treatment plan, which may include surgical intervention, chemotherapy, or radiation therapy."
+        ),
+        "recommendation": "Urgent oncology consultation and immediate treatment preparation.",
+    },
+    {
+        "range": "71% - 80% Malignancy (20% - 29% Benign)",
+        "summary": (
+            "The findings indicate a high probability of malignancy, necessitating immediate intervention. The recommended course of action typically involves surgical excision, followed by adjunctive therapies such as chemotherapy or radiation. Prioritizing a comprehensive diagnostic assessment and staging is imperative."
+        ),
+        "recommendation": "Make the comprehensive oncological intervention a top priority and proceed with the development of a treatment plan.",
+    },
+    {
+        "range": "81% - 90% Malignancy (10% - 19% Benign)",
+        "summary": (
+            "The initial assessment indicates a high probability of malignancy. We recommend pursuing aggressive management strategies which may include surgical resection and systemic therapies. Additionally, consideration should be given to incorporating adjuvant therapies to address potential metastatic spread."
+        ),
+        "recommendation": "Aggressive treatment, including surgery and systemic therapy, is necessary.",
+    },
+    {
+        "range": "91% - 100% Malignancy (0% - 9% Benign)",
+        "summary": (
+            "Based on the diagnosis, the tumor is highly likely to be malignant, necessitating prompt intervention such as surgical excision, chemotherapy, radiation, or other targeted treatments. It is imperative to involve a multidisciplinary team to ensure comprehensive care."
+        ),
+        "recommendation": "Urgent and aggressive intervention with a comprehensive oncological management plan.",
+    },
+]
+FEATURE_EXPLANATIONS = [
+    {
+        "feature": "radius_mean",
+        "explanation": "The average distance from the center of the tumor to its edge. Larger values typically indicate a larger tumor.",
+    },
+    {
+        "feature": "texture_mean",
+        "explanation": "The average variation in the grayscale values of the tumor's pixels. Higher values suggest a rougher texture.",
+    },
+    {
+        "feature": "perimeter_mean",
+        "explanation": "The average length around the boundary of the tumor. Larger values may suggest a larger or more irregularly shaped tumor.",
+    },
+    {
+        "feature": "area_mean",
+        "explanation": "The average size of the tumor's cross-sectional area. Larger values indicate a larger tumor.",
+    },
+    {
+        "feature": "smoothness_mean",
+        "explanation": "The average smoothness of the tumor's surface. Lower values indicate a smoother surface, while higher values suggest more irregularity.",
+    },
+    {
+        "feature": "compactness_mean",
+        "explanation": "The ratio of the tumor's perimeter squared to its area, adjusted for the shape's compactness. Higher values suggest a less compact and more irregular shape.",
+    },
+    {
+        "feature": "concavity_mean",
+        "explanation": "The extent to which the tumor's contour is concave {i.e., has inward-curving parts). Higher values suggest more concave areas.",
+    },
+    {
+        "feature": "concave_points_mean",
+        "explanation": "The number of concave parts of the tumor's boundary. Higher values indicate more pronounced inward curves.",
+    },
+    {
+        "feature": "symmetry_mean",
+        "explanation": "The symmetry of the tumor's shape. Higher values suggest less symmetry.",
+    },
+    {
+        "feature": "fractal_dimension_mean",
+        "explanation": "A measure of the tumor's boundary complexity. Higher values indicate a more irregular and complex boundary.",
+    },
+    {
+        "feature": "radius_se",
+        "explanation": "The standard error of the radius measurement. Higher values suggest more variation in the tumor's radius.",
+    },
+    {
+        "feature": "texture_se",
+        "explanation": "The standard error of the texture measurement. Higher values indicate more variation in the tumor's texture.",
+    },
+    {
+        "feature": "perimeter_se",
+        "explanation": "The standard error of the perimeter measurement. Higher values suggest more variation in the tumor's boundary.",
+    },
+    {
+        "feature": "area_se",
+        "explanation": "The standard error of the area measurement. Higher values indicate more variation in the tumor's size.",
+    },
+    {
+        "feature": "smoothness_se",
+        "explanation": "The standard error of the smoothness measurement. Higher values suggest more variation in the tumor's surface smoothness.",
+    },
+    {
+        "feature": "compactness_se",
+        "explanation": "The standard error of the compactness measurement. Higher values indicate more variation in the tumor's compactness.",
+    },
+    {
+        "feature": "concavity_se",
+        "explanation": "The standard error of the concavity measurement. Higher values suggest more variation in the tumor's concave areas.",
+    },
+    {
+        "feature": "concave_points_se",
+        "explanation": "The standard error of the concave points measurement. Higher values indicate more variation in the number of concave points.",
+    },
+    {
+        "feature": "symmetry_se",
+        "explanation": "The standard error of the symmetry measurement. Higher values suggest more variation in the tumor's symmetry.",
+    },
+    {
+        "feature": "fractal_dimension_se",
+        "explanation": "The standard error of the fractal dimension measurement. Higher values indicate more variation in the boundary complexity.",
+    },
+    {
+        "feature": "radius_worst",
+        "explanation": "The largest value of the radius across all cells in the image. Higher values typically indicate a larger tumor.",
+    },
+    {
+        "feature": "texture_worst",
+        "explanation": "The roughest texture observed in the tumor. Higher values suggest a rougher surface.",
+    },
+    {
+        "feature": "perimeter_worst",
+        "explanation": "The longest boundary measurement observed in the tumor. Higher values indicate a larger or more irregularly shaped tumor.",
+    },
+    {
+        "feature": "area_worst",
+        "explanation": "The largest area observed for the tumor. Higher values indicate a larger tumor.",
+    },
+    {
+        "feature": "smoothness_worst",
+        "explanation": "The least smooth surface observed in the tumor. Higher values suggest a more irregular surface.",
+    },
+    {
+        "feature": "compactness_worst",
+        "explanation": "The most compact (or least compact) shape observed for the tumor. Higher values suggest a less compact and more irregular shape.",
+    },
+    {
+        "feature": "concavity_worst",
+        "explanation": "The most concave shape observed in the tumor. Higher values suggest deeper inward curves.",
+    },
+    {
+        "feature": "concave_points_worst",
+        "explanation": "The highest number of concave points observed in the tumor. Higher values indicate more pronounced inward curves.",
+    },
+    {
+        "feature": "symmetry_worst",
+        "explanation": "The least symmetrical shape observed in the tumor. Higher values suggest less symmetry.",
+    },
+    {
+        "feature": "fractal_dimension_worst",
+        "explanation": "The most complex boundary observed in the tumor. Higher values indicate a more irregular and complex boundary.",
+    },
+]
+FEATURE_ABBRI = [
+    {
+        "feature": "Tumor",
+        "explanation": "An abnormal growth of cells that can be benign (non-cancerous) or malignant (cancerous).",
+    },
+    {
+        "feature": "Radius",
+        "explanation": "The distance from the center of the tumor to its edge.",
+    },
+    {
+        "feature": "Texture",
+        "explanation": "The variation in grayscale values of the tumor's pixels.",
+    },
+    {
+        "feature": "Perimeter",
+        "explanation": "The length around the boundary of the tumor.",
+    },
+    {"feature": "Area", "explanation": "The size of the tumor's cross-sectional area."},
+    {
+        "feature": "Smoothness",
+        "explanation": "How smooth or irregular the tumor's surface is.",
+    },
+    {
+        "feature": "Compactness",
+        "explanation": "How closely packed or dense the tumor is.",
+    },
+    {
+        "feature": "Concavity",
+        "explanation": "The extent to which the tumor's contour is concave.",
+    },
+    {
+        "feature": "Concave Points",
+        "explanation": "The number of concave parts of the tumor's boundary.",
+    },
+    {
+        "feature": "Symmetry",
+        "explanation": "How evenly balanced or identical the tumor's shape is.",
+    },
+    {
+        "feature": "Fractal Dimension",
+        "explanation": "A measure of the tumor's boundary complexity.",
+    },
+]
 import pandas as pd
 from PaulVideoPlatform import settings
 
 
 class HelpResponse:
+
+    categories = [
+        "Radius",
+        "Texture",
+        "Perimeter",
+        "Area",
+        "Smoothness",
+        "Compactness",
+        "Concavity",
+        "Concave Points",
+        "Symmetry",
+        "Fractal Dimension",
+    ]
+
+    def generate_key(self, category, key_type):
+        if category == "Concave Points":
+            return f"concave points_{key_type}"
+        return f"{category.lower().replace(' ', '_')}_{key_type}"
+
+    def get_clean_data(self):
+        data = pd.read_csv(f"{settings.STATICFILES_DIRS[0]}/model/data.csv")
+        data = data.drop(["Unnamed: 32", "id"], axis=1)
+        data["diagnosis"] = data["diagnosis"].map({"M": 1, "B": 0})
+        return data
+
+    def add_predictions(self, input_data):
+        dir = settings.STATICFILES_DIRS[0]
+        model_file_path = self.request.trained_model.model_file_path
+        scaler_file_path = self.request.trained_model.scaler_file_path
+        model = pickle.load(open(model_file_path, "rb"))
+        scaler = pickle.load(open(scaler_file_path, "rb"))
+
+        input_df = pd.DataFrame([input_data])
+        input_array_scaled = scaler.transform(input_df)
+        prediction = model.predict(input_array_scaled)
+        probabilities = model.predict_proba(input_array_scaled)
+        return probabilities, prediction
+
+    def get_scaled_values(self, input_dict):
+        data = self.get_clean_data()
+        X = data.drop(["diagnosis"], axis=1)
+        scaled_dict = {}
+        for key, value in input_dict.items():
+            max_val = X[key].max()
+            min_val = X[key].min()
+            scaled_value = (value - min_val) / (max_val - min_val)
+            scaled_dict[key] = scaled_value
+        return scaled_dict
 
     def fetchRespondedQuestions(self, response_instance):
         grouped_questions = {header: [] for header in section_headers}
@@ -565,9 +1048,11 @@ class HelpResponse:
 
     def get_risk_level_from_score(self, score):
         formatted_score = f"{score * 100:.2f}"
-        if score < 0.43:
+        if score > 1:
+            score /= 100
+        if score < 0.33:
             risk_level = RISK_LEVEL[0]
-        elif score < 0.79:
+        elif score < 0.66:
             risk_level = RISK_LEVEL[1]
         else:
             risk_level = RISK_LEVEL[2]

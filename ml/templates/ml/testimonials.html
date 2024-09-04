@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary"><i class="fa fa-comments"></i> Testimonial List</h2>
+    </div>
+
+    <!-- Filter Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary">
+            <i class="fa fa-filter"></i> 
+            <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#filterForm" aria-expanded="true">
+                            Filter Testimonial
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{% url 'AdminHub:testimonial_list' %}" id="filterForm" class="collapse">
+                <!-- Include filter fields here -->
+                 <div class="row">
+                    {% for field in filter.form %}
+                        <div class="form-group col-md-3">
+                            {{field.as_field_group}}
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="col-md-12 text-center mt-3">
+                    <label>&nbsp;</label>
+                    <button onclick="clearFilters('filterForm')"class="btn btn-warning btn-block pr-40"><i class="fa fa-fw fa-rotate-left"></i> Reset</button>
+                    <button type="submit" class="btn btn-primary btn-block"><i class="fa fa-search"></i> Search</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Contact List Table -->
+    <div class="card">
+        <div class="card-body">
+            <form id="delete-form" method="POST" action="{% url 'AdminHub:delete_testimonial' %}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"> </h5>
+                    <button type="button" id="delete-selected" class="btn btn-danger" 
+                    data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                    >
+                        <i class="fa fa-trash"></i> Delete Selected
+                    </button>
+                </div>
+                {% csrf_token %}
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>
+                                    <div class="form-check" >
+                                        <input type="checkbox" id="check_all" class="form-check-input checkAll">
+                                        <label for="check_all" class="form-check-label">#</label>
+                                    </div>
+                                </th>
+                                <th>User</th>
+                                <th>Risk Level</th>
+                                <th>Rate</th>
+                                <th>Status</th>
+                                <th>Submitted On</th>
+                                <th scope="col" class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr>
+                                <td scope="row">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" name="selected_items"
+                                            value="{{item.id}}" id="check_{{item.id}}">
+                                        <label for="check_{{item.id}}" class="form-check-label"> 
+                                            {{ forloop.counter|stringformat:"02d" }}
+                                        </label>
+                                    </div>
+                                </td>
+                                <td>
+                                    {{item.result.user.username}}
+                                </td>
+                                <td>
+                                    {{item.result.risk_level}}
+                                </td>
+                                <td class="reting">
+                                    {% with rate=item.rating %}
+                                        <ul class="list-inline text-left" style="display: inline-block; text-align: center;"
+                                            {% if rate == 1 %}title="Very Poor"
+                                            {% elif rate == 2 %}title="Poor"
+                                            {% elif rate == 3 %}title="Average"
+                                            {% elif rate == 4 %}title="Good"
+                                            {% else %}title="Excellent"{% endif %}>
+                                            {% for i in "12345" %}
+                                                {% if forloop.counter <= rate %}
+                                                    <li class="px-0 d-inline-block"><i class="text-warning fa fa-star"></i></li>
+                                                {% else %}
+                                                    <li class="px-0 d-inline-block"><i class="text-warning fa fa-star-o"></i></li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ul>
+                                    {% endwith %}
+                                </td>
+
+                                <td>
+                                    <a href="javascript:void(0);" 
+                                    class="badge bg-{% if item.show %}success{% else %}info{% endif %}" 
+                                    onclick="toggleFeedbackShow({{ item.pk }}, this);"> 
+                                    {% if item.show %}Public{% else %}Private{% endif %}
+                                    </a>
+                                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                                </td>
+                                <td>{{ item.submitted_at|date:"M d, Y" }}</td>
+                                <td class="text-center">
+                                    <a href="javascript:void(0);" class="action-icon ms-2" 
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#contactDetailModal"
+                                        onclick="openModal({{ item.id }},true)"> 
+                                        <i class="align-middle" data-feather="info"></i>
+                                    </a>
+                                    <a href="javascript:void(0);" class="action-icon ms-2" 
+                                        onclick="navigateToUrl(this)" 
+                                        data-url="{% if item.result %}{% url 'AdminHub:detailed_result' item.result.id %}{% endif %}"> 
+                                        <i class="align-middle" data-feather="eye{% if not item.result %}-off{% endif %}">
+                                        </i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center">No testimonial available.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% if items %}
+        <p class="mt-40 fs-5">
+            Total testimonial found: {{ items|length }}
+        </p>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% include 'includes/pagenator.html' %}
+    <!-- Modal -->
+    {% include 'ml/includes/contacts_modal.html' %}
+        
+</div>
+
+{% endblock %}
+{% block scripts %}
+    {% include 'ml/includes/contacts_script.html' %}
+{% endblock scripts %}

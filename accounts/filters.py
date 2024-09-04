@@ -87,29 +87,23 @@ class AccountFilter(django_filters.FilterSet):
             attrs={"class": "form-control", "placeholder": "Last Login Before"}
         ),
     )
-    is_active = django_filters.BooleanFilter(
+    is_active = django_filters.ChoiceFilter(
         field_name="is_active",
         label="Is Active",
-        widget=forms.Select(
-            choices=[(True, "Yes"), (False, "No")],
-            attrs={"class": "form-control"},
-        ),
+        choices=[("", "All"), (True, "Yes"), (False, "No")],
+        widget=forms.Select(attrs={"class": "form-control"}),
     )
-    is_staff = django_filters.BooleanFilter(
+    is_staff = django_filters.ChoiceFilter(
         field_name="is_staff",
         label="Is Staff",
-        widget=forms.Select(
-            choices=[(True, "Yes"), (False, "No")],
-            attrs={"class": "form-control"},
-        ),
+        choices=[("", "All"), (True, "Yes"), (False, "No")],
+        widget=forms.Select(attrs={"class": "form-control"}),
     )
-    is_superadmin = django_filters.BooleanFilter(
+    is_superadmin = django_filters.ChoiceFilter(
         field_name="is_superadmin",
         label="Is Super Admin",
-        widget=forms.Select(
-            choices=[(True, "Yes"), (False, "No")],
-            attrs={"class": "form-control"},
-        ),
+        choices=[("", "All"), (True, "Yes"), (False, "No")],
+        widget=forms.Select(attrs={"class": "form-control"}),
     )
     min_age = django_filters.NumberFilter(
         method="filter_min_age",

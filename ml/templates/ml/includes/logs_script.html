@@ -1,0 +1,68 @@
+<script>
+    let logIdToDelete = null;
+  function confirmDelete(logId) {
+    logIdToDelete = logId
+  }
+  $(document).ready(function () {
+    $('.view-details-btn').on('click', function () {
+      var logId = $(this).data('log-id');
+      var modalBodyContent = $('#log-details-content');
+      var loadingSpinner = $('#loading-spinner');
+
+      // Show the modal
+      $('#logDetailsModal').modal('show');
+
+      // Show loading spinner and hide content
+      loadingSpinner.show();
+      modalBodyContent.hide();
+      url = "{% url 'AdminHub:log_details' 1 %}".replace('1', logId);
+      // AJAX request to fetch log details
+      $.ajax({
+        url: url,
+        method: 'GET',
+        success: function (data) {
+          modalBodyContent.html(data);
+
+          // Hide loading spinner and show content
+          loadingSpinner.hide();
+          modalBodyContent.show();
+        },
+        error: function (xhr, status, error) {
+          modalBodyContent.html(
+            '<p class="text-danger">An error occurred while loading the log details.</p>'
+          );
+          loadingSpinner.hide();
+          modalBodyContent.show();
+        },
+      });
+    });
+  });
+
+  function deleteLog() {
+      var selectedItems = $('input[name="selected_items"]:checked');
+      if (selectedItems.length === 0) {
+          $('#deleteConfirmationModal').modal('hide');
+          showToast('Error', "Please select at least one log to delete.",'error');
+          return;
+      }
+      $.ajax({
+            url: $("#delete-form").attr("action"),
+            method: "POST",
+            data: $("#delete-form").serialize(),
+            success: function(response) {
+                if (response.success) {
+                    location.reload(); 
+                } else {
+                  $('#deleteConfirmationModal').modal('hide');
+                  showToast('Success', "An error occurred: " + response.error, 'success');
+                }
+            },
+            error: function(xhr) {
+            $('#deleteConfirmationModal').modal('hide');
+            showToast('Error', "An error occurred while deleting the selected log(s).", 'error');
+            }
+        });
+
+
+  }
+</script>

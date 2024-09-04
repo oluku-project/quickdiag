@@ -1,0 +1,542 @@
+{% extends 'base.html' %} 
+{% load static %} 
+{% load custom_filters %} 
+{% block headers %}
+<style>
+  /* Custom scrollbar styling for all popular browsers */
+  .custom-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer and Edge */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 0; /* WebKit (Chrome, Safari, Edge) */
+    height: 0;
+  }
+
+  .custom-scrollbar:hover {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: rgba(0, 0, 0, 0.3) rgba(0, 0, 0, 0.1); /* Firefox */
+
+    -webkit-scrollbar {
+      width: 8px; /* WebKit */
+      height: 8px;
+    }
+
+    -webkit-scrollbar-thumb {
+      background-color: rgba(0, 0, 0, 0.3);
+      border-radius: 4px;
+    }
+
+    -webkit-scrollbar-track {
+      background-color: rgba(0, 0, 0, 0.1);
+    }
+  }
+
+ 
+
+  .result-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+  }
+
+  .result-summary {
+    margin-top: 20px;
+    font-size: 1rem;
+  }
+
+  .result-icon {
+    font-size: 2rem;
+    margin-right: 10px;
+  }
+
+  .benign {
+    color: #28a745;
+  }
+
+  .malignant {
+    color: #dc3545;
+  }
+</style>
+{% endblock headers %} 
+{% block content %}
+<section class="content admin-prediction-template">
+  <div class="container-fluid">
+    
+    <div class="row align-items-center">
+      <!-- Toggle Button inside the same row, aligned left -->
+      <div class="col-md-2 d-flex align-items-center">
+        <button id="toggle-sliders" type="button" class="waves-effect waves-light btn btn-rounded btn-secondary mb-5"><i class="fa fa-sliders me-2"></i> Toggle Sliders</button>
+      </div>
+      <!-- Text Content centered in the remaining space -->
+      <div class="col-md-10 text-center">
+        <h2 class="display-4">Breast Cancer Prediction</h2>
+      </div>
+    </div>
+
+    <div class="row">
+      <div
+        class="col-md-3 position-relative"
+        id="sidebar-column"
+        style="display: none"
+      >
+        <!-- Sidebar for Sliders -->
+        <div
+          id="slider-sidebar"
+          class="sidebar p-3 shadow-sm rounded custom-scrollbar"
+          style="max-height: 600px; overflow-y: auto"
+        >
+          <!-- Sliders will be appended here via JS -->
+        </div>
+      </div>
+      <div class="col-md-12" id="content-column">
+        <!-- Main content area -->
+        <div class="card shadow-sm p-4">
+          <h4 class="card-title text-center">Prediction Results</h4>
+          <div id="user-info" class="text-center">
+            <p class="text-muted">
+              Results will be displayed here after selecting a user and adjusting the sliders.
+            </p>
+          </div>
+        </div>
+
+        <!--Chart and prediction result -->
+        <div class="row">
+          <!-- Radar Chart -->
+          <div class="col-md-8 text-center">
+            <div class="box">
+              {% csrf_token %}
+              <div class="box-body" id="radar-chart-container">    
+                  {{ radar_chart_data|safe }}
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="box">
+              <div class="box-header with-border text-center">
+                <h4 class="box-title">Prediction Summary</h4>
+              </div>
+              <div class="box-body">
+                <div id="prediction"></div>
+                <div class="d-flex align-items-center mb-3">
+                  <i class="fa fa-check-circle result-icon benign"></i>
+                  <div class="result-value" id="benign-probability">0%</div>
+                </div>
+                <div class="d-flex align-items-center mb-3">
+                  <i class="fa fa-times-circle result-icon malignant"></i>
+                  <div class="result-value" id="malignant-probability">0%</div>
+                </div>
+                <div class="result-summary" id="diagnostic-summary">
+                  <!-- Diagnostic summary will be populated here -->
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-success mb-5" data-bs-toggle="modal" data-bs-target="#userListModal">
+              Open User List
+          </button>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+    <div class="row mt-5">
+      <div class="col-md-12">
+        <div class="box">
+          <div class="box-body">
+            <div class="box-header">
+                        <h4 class="box-title text-center">How It Works</h4>
+            </div>
+            <p >
+              This prediction tool uses a machine learning model to estimate the likelihood of breast cancer based on several cell nuclei measurements. The model has been trained on a comprehensive dataset and provides insights to assist in early detection and diagnosis.
+            </p>
+            <p >
+              To use this tool, adjust the sliders to input the cell nuclei measurements for the patient. The model will analyze the data and generate predictions on whether the tumor is benign or malignant, along with the probability scores. This helps in making informed decisions about further medical procedures or interventions.
+            </p>
+            <p >
+              <strong>Note:</strong> Ensure all measurements are as accurate as possible for the most reliable prediction results. For detailed interpretation of the results, consult with a healthcare professional.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% include 'ml/includes/measurement-user-list-modal.html' %} 
+{% endblock content %}
+ {% block script %}
+<script src="{% static 'assets/vendor_components/ion-rangeSlider/js/ion.rangeSlider.min.js' %}"></script>
+{% include 'includes/base-script.html' %} 
+{% endblock script %} 
+{% block scripts %}
+<script>
+  // Get slider data from context
+  let sliders = {{ sliders|safe }};
+
+  // Generate sliders dynamically
+  $("#slider-sidebar").append(`
+  <div class="card">
+    <div class="card-body">
+        <div class="card-header">
+          <div class="card-title ">
+            Cell Nuclei Measurements
+          </div>
+        </div>
+    </div>
+  </div>
+  `);
+  sliders.forEach(function(slider) {
+      let nameSpace = slider.name.split(' ');
+      let result = nameSpace.length > 1 ? nameSpace[1] : nameSpace[0];
+      let sliderHtml = `
+          <div class="card card-body">
+              <div class="form-group row">
+                  <label for="range_${result}" class="col-sm-12 form-label fw-bold">
+                      ${slider.label}
+                  </label>
+                  <div class="col-sm-12">
+                      <input type="text" id="range_${result}" name="${slider.name}" class="form-control slider">
+                  </div>
+              </div>
+          </div>
+      `;
+      $("#slider-sidebar").append(sliderHtml);
+      $("#range_" + result).ionRangeSlider({
+          grid: true,
+          min: slider.min,
+          max: slider.max,
+          from: slider.from,
+          step: slider.step,
+          onFinish: updateRadarChart
+      });
+  });
+
+  // Toggle the visibility of the slider sidebar and adjust content width
+  $('#toggle-sliders').on('click', function() {
+      $('#sidebar-column').toggle();
+      $('#content-column').toggleClass('col-md-9').toggleClass('col-md-12');
+       // Apply the chart theme based on the background color immediately after the page loads
+    updateChartBasedOnBg();
+    
+    // Render the radar chart with the current data and theme
+    updateRadarChart();
+  });
+
+  function updatePredictionResults(results) {
+    var pre = results.prediction
+    $('#prediction').html(`
+        <p class="badge badge-${(pre===1)?'danger':'success'}">
+          ${(pre==1)?'MALIGNANT':'BENIGN'}
+        </p>
+    `);
+    
+    $('#benign-probability').text(results.benign + '%');
+    $('#malignant-probability').text(results.malignant + '%');
+    $('#diagnostic-summary').html(`
+          <p>${results.summary}</p>
+          <strong>Recommendation:</strong>
+          <p>${results.recommendation}</p>
+          <em>${results.range}</em>
+      `);
+  }
+
+  const predictionResults = {
+      benign: "{{ probability_benign }}",
+      malignant: "{{ probability_malignant }}",
+      prediction: "{{ prediction }}",
+      summary: "{{ summary }}",
+      recommendation: "{{ recommendation }}",
+      range: "{{ range }}"
+  };
+  
+  // Initial update of results
+  updatePredictionResults(predictionResults);
+
+  // Render the radar chart and update the prediction results
+
+   
+
+  // Update the chart theme based on the background color
+  function updateChartBasedOnBg() {
+      var bgColorHex = localStorage.getItem('theme-skin');
+      let theme = (bgColorHex === 'dark-skin') ? 'dark':'light'; 
+
+      updateChartTheme(theme);
+  }
+
+  // Apply the theme to the radar chart
+  function updateChartTheme(theme) {
+      let newLayout = {};
+
+      if (theme === 'dark') {
+          newLayout = {
+              'polar.bgcolor': '#0E0E23',
+              'polar.angularaxis.linecolor': 'white',
+              'polar.radialaxis.gridcolor': 'gray',
+              'paper_bgcolor': '#0E0E23',
+              'font.color': 'white',
+          };
+      } else {
+          newLayout = {
+              'polar.bgcolor': '#ffffff',
+              'polar.angularaxis.linecolor': 'black',
+              'polar.radialaxis.gridcolor': 'lightgray',
+              'paper_bgcolor': '#ffffff',
+              'font.color': 'black',
+          };
+      }
+
+      // Apply the layout updates to the radar chart
+      Plotly.relayout('radarChart', newLayout);
+  }
+
+  // Update the radar chart after sliders are adjusted
+  function updateRadarChart() {
+      let sliderData = {};
+      $(".slider").each(function() {
+          let sliderInstance = $(this).data("ionRangeSlider");
+          sliderData[this.name] = sliderInstance.result.from;
+      });
+
+      $.ajax({
+          type: 'POST',
+          url: "{% url 'AdminHub:measurement' %}", 
+          headers: {
+              'X-CSRFToken': getCookie('csrftoken'),
+          },
+          data: JSON.stringify({
+            slider_data: sliderData
+          }),
+          success: function(response) {
+              $('#radar-chart-container').html(response.radar_chart_data);
+              updatePredictionResults(response);
+
+              // After updating the chart, adjust the theme
+              updateChartBasedOnBg();
+          },
+          error: function(error) {
+
+          }
+      });
+  }
+
+  // Initialize the page and set the correct chart theme
+  $(document).ready(function() {
+      // Apply the chart theme based on the background color immediately after the page loads
+      updateChartBasedOnBg();
+      
+      // Render the radar chart with the current data and theme
+      updateRadarChart();
+
+      // Re-apply the chart theme whenever sliders are adjusted
+      sliders.forEach(function(slider) {
+          $("#range_" + slider.name.split(' ').join('_')).on('finish', updateRadarChart);
+      });
+  });
+
+    
+</script>
+
+<script>
+$(document).ready(function () {
+    const $userListModal = $('#userListModal');
+    const $userListContainer = $('#userListContainer');
+    const $filterForm = $('#userFilterForm');
+    const $paginationContainer = $('.pagination');
+    const $predictionCard = $('.card.shadow-sm.p-4');
+    const $selectUserButton = $('#selectUserButton');
+
+    let currentPage = 1;
+    let totalPages = 1;
+    let selectedUser = null;
+
+    // Function to set default content in the prediction card
+    function setDefaultPredictionContent() {
+        $predictionCard.html(`
+            <h4 class="card-title text-center">Prediction Results</h4>
+            <p class="text-muted text-center">
+                Results will be displayed here after selecting a user and adjusting the sliders.
+            </p>
+        `);
+    }
+
+    // Initialize with default content
+    setDefaultPredictionContent();
+
+    // Event listener for when the modal is shown
+    $userListModal.on('show.bs.modal', function () {
+        fetchUserList();
+    });
+
+    // Event listener for when the modal is hidden
+    $userListModal.on('hide.bs.modal', function () {
+        if (!selectedUser) {
+            setDefaultPredictionContent();
+        }
+    });
+
+    $selectUserButton.on('click', function () {
+        if (selectedUser) {
+            updatePredictionCard(selectedUser);
+            $userListModal.modal('hide');
+        } else {
+           showToast("info", "Please select a user before proceeding.", "info");
+        }
+    });
+
+    function fetchUserList(page = 1) {
+        const formData = $filterForm.serialize();
+        $.ajax({
+            url: `/AdminHub/api/users/?page=${page}&${formData}`,
+            method: 'GET',
+            success: function (data) {
+                updateUsers(data.users);
+                updatePagination(data.previous, data.next, page, data.total_pages);
+            },
+            error: function () {
+                $userListContainer.html('<p class="text-danger">Failed to load users. Please try again later.</p>');
+            }
+        });
+    }
+
+    function updateUsers(users) {
+        if (users.length > 0) {
+            let userListHtml = '<ul class="list-group">';
+            $.each(users, function (index, user) {
+                userListHtml += `
+                    <li class="list-group-item">
+                        <input type="radio" name="selectedUser" value="${user.id}" id="user${user.id}">
+                        <label for="user${user.id}" class="display-2"><b>${user.username}</b> : ${user.email}</label>
+                    </li>`;
+            });
+            userListHtml += '</ul>';
+            $userListContainer.html(userListHtml);
+
+            // Attach event listeners to radio buttons after they are rendered
+            attachUserSelectionListeners(users);
+        } else {
+            $userListContainer.html('<p class="text-danger">No users found.</p>');
+            setDefaultPredictionContent(); // Reset to default if no users are found
+        }
+    }
+
+    function attachUserSelectionListeners(users) {
+        $.each(users, function (index, user) {
+            $(`#user${user.id}`).on('change', function () {
+                if (this.checked) {
+                    selectedUser = user;
+                }
+            });
+        });
+    }
+
+    function updatePredictionCard(user) {
+    $predictionCard.html(`
+        <h4 class="card-title text-center">Prediction Results for <strong>${user.username}</strong></h4>
+        <p class="text-muted text-center mt-2"><strong>Email:</strong> ${user.email}</p>
+        <p class="text-muted text-center"><strong>Name:</strong> ${user.first_name || 'N/A'} ${user.last_name || 'N/A'}</p>
+        <div class="d-flex justify-content-end mt-3">
+            <button type="button" class="btn btn-primary" id="save-prediction-btn">Save Prediction</button>
+        </div>
+    `);
+    }
+
+
+    function updatePagination(previousPage, nextPage, currentPage, totalPagesCount) {
+        totalPages = totalPagesCount;
+        let paginationHtml = '';
+        const maxVisiblePages = 5;
+        const halfMaxVisible = Math.floor(maxVisiblePages / 2);
+
+        if (currentPage > 1) {
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="1">&laquo;&laquo; First</a></li>`;
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="${currentPage - 1}">&laquo; Previous</a></li>`;
+        }
+
+        let startPage = Math.max(1, currentPage - halfMaxVisible);
+        let endPage = Math.min(totalPages, currentPage + halfMaxVisible);
+
+        if (startPage > 1) {
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`;
+            if (startPage > 2) {
+                paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            paginationHtml += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                paginationHtml += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a></li>`;
+        }
+
+        if (currentPage < totalPages) {
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="${currentPage + 1}">Next &raquo;</a></li>`;
+            paginationHtml += `<li class="page-item"><a class="page-link" href="#" data-page="${totalPages}">Last &raquo;&raquo;</a></li>`;
+        }
+
+        $paginationContainer.html(paginationHtml);
+
+        // Add click event for pagination links
+        $('.pagination .page-link').on('click', function (event) {
+            event.preventDefault();
+            const page = $(this).data('page');
+            fetchUserList(page);
+        });
+    }
+
+    $filterForm.on('submit', function (event) {
+        event.preventDefault();
+        fetchUserList(1);
+    });
+
+    $(document).on('click', '#save-prediction-btn', function () {
+      let sliderData = {};
+
+      $(".slider").each(function() {
+        let sliderInstance = $(this).data("ionRangeSlider");
+        sliderData[this.name] = sliderInstance.result.from;
+      });
+
+      if (selectedUser && sliderData) {
+        savePrediction( selectedUser, sliderData);
+      } else {
+        showToast("info", "Please select a user and adjust the sliders before saving.", "info");
+      } 
+
+    });
+});
+
+
+// Event listener for when the save prediction button is clicked
+  function savePrediction(user, sliderData) {
+      const csrfToken = getCookie('csrftoken');
+      var data = JSON.stringify({
+            user_id: user.id,
+            slider_data: sliderData,
+            is_save_prediction: true
+          })
+      $.ajax({
+          type: 'POST',
+          url: '{% url "AdminHub:measurement" %}',
+          headers: {
+              'X-CSRFToken': csrfToken,
+          },
+          data: data,
+          success: function (response) {
+            showToast("success", "Prediction saved successfully!", "success");
+           
+          },
+          error: function (error) {
+              showToast("error", "Failed to save the prediction. Please try again.", "error");
+          }
+      });
+  }
+</script>
+
+{% endblock scripts %}
+

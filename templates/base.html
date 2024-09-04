@@ -37,7 +37,7 @@
     <!-- Control Sidebar -->
     {% include 'includes/Control-Sidebar.html' %}
     <!-- /.control-sidebar -->
-
+    
     <!-- Add the sidebar's background. This div must be placed immediately after the control sidebar -->
     <div class="control-sidebar-bg.html"></div>
   </div>
@@ -45,15 +45,14 @@
 
   <!-- chat-box -->
   <div class="chat-box.html"></div>
-
+  
   <!-- Page Content overlay -->
-
-
+  
+  
   {% endblock body %}
 
 
   {% block script %}
-  <script src="{% static 'assets/vendor_components/apexcharts-bundle/dist/apexcharts.js' %}"></script>
-  <script src="{% static 'js/demo.js' %}"></script>
-  <script src="{% static 'js/template.js' %}"></script>
+  {% include 'includes/base-script.html' %}
+  
   {% endblock script %}

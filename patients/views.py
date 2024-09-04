@@ -1,8 +1,10 @@
+import logging
 from django.urls import reverse
 from django.shortcuts import render, redirect
 from django.db import transaction
 from accounts.mixins import ActiveUserRequiredMixin
 from accounts.templatetags.custom_filters import calculate_age
+from ml.models import GeneralSettings
 from ml.utils import log_user_activity
 from patients.forms import ContactForm, FeedbackForm
 from patients.utils import (
@@ -38,11 +40,47 @@ from django.contrib import messages
 from io import BytesIO
 import matplotlib.pyplot as plt
 import base64
+from django.utils.translation import gettext_lazy as _
+
+
+logger = logging.getLogger("custom_logger")
 
 
 class QuestionnaireView(ActiveUserRequiredMixin, View):
+    require_non_staff = True
     template_name = "patients/questionnaire.html"
     responseID = None
+
+    def dispatch(self, request, *args, **kwargs):
+        # Calculate user's age
+        response = super().dispatch(request, *args, **kwargs)
+        if not request.user.is_authenticated:
+            # If not authenticated, this should be handled by the mixin, but you can add custom behavior here if needed
+            messages.error(request, _("You need to be logged in to access this page."))
+            return redirect("auth:login")
+
+        # Ensure the user has a date of birth
+        if request.user.date_of_birth is None:
+            messages.error(
+                request,
+                _(
+                    "We could not retrieve your date of birth. Please update your profile."
+                ),
+            )
+            return redirect("auth:profile")
+
+        # Calculate user's age
+        user_age = calculate_age(request.user.date_of_birth)
+        if user_age < 18:
+            messages.error(
+                request,
+                _(
+                    "You must be at least 18 years old to complete the questionnaire. Please update your profile if this information is incorrect."
+                ),
+            )
+            return redirect("auth:profile")
+
+        return response
 
     def get(self, request, *args, **kwargs):
         self.responseID = kwargs.get("pk", None)
@@ -101,15 +139,17 @@ class QuestionnaireView(ActiveUserRequiredMixin, View):
                 if response_instance.progress != progress:
                     response_instance.progress = progress
                     response_instance.save()
-                    log_user_activity(self.request, user, "assessment updated")
+                    log_user_activity(
+                        self.request, user, "Updated responses for the assessment."
+                    )
                     msg = "Your responses have been updated and successfully submitted."
             else:
                 # Create a new QuestionnaireResponse instance
                 response_instance = QuestionnaireResponse.objects.create(
-                    user=user, progress=progress
+                    user=user, progress=progress, created_by=user
                 )
-                log_user_activity(self.request, user, "assessment initiated")
-                msg = "Your responses have been created and successfully submitted."
+                log_user_activity(self.request, user, "Initiated a new assessment.")
+                msg = "Your responses have been created successfully."
             # Create new responses for the QuestionnaireResponse instance
             response_objects = [
                 Response(questionnaire_response=response_instance, question_key=key)
@@ -133,6 +173,7 @@ questionnaier = QuestionnaireView.as_view()
 
 
 class SummaryView(ActiveUserRequiredMixin, HelpResponse, DetailView):
+    allow_both = True
     model = QuestionnaireResponse
     template_name = "patients/summary.html"
     context_object_name = "response_instance"
@@ -149,10 +190,10 @@ class SummaryView(ActiveUserRequiredMixin, HelpResponse, DetailView):
                 "title_root": "Summary",
             }
         )
-        response_instance.state = STATE.PENDING
+        response_instance.state = STATE.IN_PROGRESS
         response_instance.save()
         log_user_activity(
-            self.request, self.request.user, "viewed summary on assessment"
+            self.request, self.request.user, "Viewed summary of the assessment."
         )
         return context
 
@@ -161,6 +202,8 @@ summary_view = SummaryView.as_view()
 
 
 class PredictionView(ActiveUserRequiredMixin, HelpResponse, DetailView):
+    allow_both = True
+
     template_name = "patients/results.html"
     context_object_name = "response_instance"
 
@@ -180,41 +223,6 @@ class PredictionView(ActiveUserRequiredMixin, HelpResponse, DetailView):
             return get_object_or_404(PredictionResult, pk=self.kwargs["pk"])
         else:
             return get_object_or_404(QuestionnaireResponse, pk=self.kwargs["pk"])
-
-    def get_clean_data(self):
-        data = pd.read_csv(f"{settings.STATICFILES_DIRS[0]}/model/data.csv")
-        data = data.drop(["Unnamed: 32", "id"], axis=1)
-        data["diagnosis"] = data["diagnosis"].map({"M": 1, "B": 0})
-        return data
-
-    def get_default_values(self):
-        with open(
-            f"{settings.STATICFILES_DIRS[0]}/model/default_values.pkl", "rb"
-        ) as f:
-            default_values = pickle.load(f)
-        return default_values
-
-    def add_predictions(self, input_data):
-        dir = settings.STATICFILES_DIRS[0]
-        model = pickle.load(open(f"{dir}/model/model.pkl", "rb"))
-        scaler = pickle.load(open(f"{dir}/model/scaler.pkl", "rb"))
-
-        input_df = pd.DataFrame([input_data])
-        input_array_scaled = scaler.transform(input_df)
-        prediction = model.predict(input_array_scaled)
-        probabilities = model.predict_proba(input_array_scaled)
-        return probabilities
-
-    def get_scaled_values(self, input_dict):
-        data = self.get_clean_data()
-        X = data.drop(["diagnosis"], axis=1)
-        scaled_dict = {}
-        for key, value in input_dict.items():
-            max_val = X[key].max()
-            min_val = X[key].min()
-            scaled_value = (value - min_val) / (max_val - min_val)
-            scaled_dict[key] = scaled_value
-        return scaled_dict
 
     def get_line_scatter_chart(self, input_data):
         input_data = self.get_scaled_values(input_data)
@@ -315,7 +323,9 @@ class PredictionView(ActiveUserRequiredMixin, HelpResponse, DetailView):
             probability_malignant = response_instance.probability_malignant
             chart_data = response_instance.chart_data
             log_user_activity(
-                self.request, self.request.user, "assesment detailed viewed"
+                self.request,
+                self.request.user,
+                "Viewed detailed results of the assessment.",
             )
             grouped_questions = self.fetchRespondedQuestions(
                 response_instance.questionnaire_response
@@ -327,13 +337,11 @@ class PredictionView(ActiveUserRequiredMixin, HelpResponse, DetailView):
                 flat=True,
             )
             # Load default values
-            default_values = self.get_default_values()
+            data = self.get_clean_data()
             user_responses = {}
             for _, k, v in QUESTIONS:
-                user_responses[k] = (
-                    v if k in question_keys else default_values.get(k, 0.00)
-                )
-            probabilities = self.add_predictions(user_responses)
+                user_responses[k] = v if k in question_keys else float(data[k].mean())
+            probabilities, _ = self.add_predictions(user_responses)
             chart_data = self.get_line_scatter_chart(user_responses)
             risk_level, risk_score = self.make_prediction(probabilities)
             risk_score = f"{risk_score * 100:.2f}"
@@ -351,12 +359,16 @@ class PredictionView(ActiveUserRequiredMixin, HelpResponse, DetailView):
             probability_malignant = f"{probabilities[0][1]:.2f}"
             grouped_questions = None
             log_user_activity(
-                self.request, self.request.user, "completed an assessment"
+                self.request,
+                self.request.user,
+                "Completed an assessment and viewed the results.",
             )
             title = "Result"
 
         # Store data in session
         self.storeDataInSession(response_instance, url_name)
+        risk_score = risk_score if risk_score > 1 else risk_score/100
+
         context.update(
             {
                 "risk_level": risk_level,
@@ -389,6 +401,8 @@ results = PredictionView.as_view()
 
 
 class PDFReportView(ActiveUserRequiredMixin, HelpResponse, View):
+    allow_both = True
+
     def get_data(self):
         """Retrieve data from session and prepare it for the PDF report."""
         data = self.request.session.get("input_data")
@@ -516,7 +530,7 @@ class PDFReportView(ActiveUserRequiredMixin, HelpResponse, View):
         )
         elements.append(
             Paragraph(
-                "Generated for: {}".format(self.request.user.full_name()),
+                "Generated for: {}".format(data["response_instance"].user.full_name()),
                 custom_styles["heading2"],
             )
         )
@@ -533,8 +547,8 @@ class PDFReportView(ActiveUserRequiredMixin, HelpResponse, View):
         # User Information
         elements.append(Paragraph("User Information", custom_styles["heading1"]))
         user_info = [
-            ["Name", self.request.user.full_name()],
-            ["Gender", self.request.user.gender],
+            ["Name", data["response_instance"].user.full_name()],
+            ["Gender", data["response_instance"].user.gender],
             ["Age", calculate_age(data["response_instance"].dob)],
             [
                 "Health History",
@@ -637,6 +651,15 @@ class PDFReportView(ActiveUserRequiredMixin, HelpResponse, View):
                 elements.append(Paragraph(msg, custom_styles["body"]))
         elements.append(Spacer(1, 30))
 
+        # Limitations
+        elements.append(Paragraph("Limitations", custom_styles["heading1"]))
+        limitations = [
+            "Model limitations: This model is not perfect and should not be used as the sole basis for medical decisions.",
+            "Data quality: The accuracy of the predictions depends on the quality of the input data.",
+        ]
+        for lim in limitations:
+            elements.append(Paragraph(lim, custom_styles["body"]))
+
         # Footer
         elements.append(Spacer(1, 40))
         elements.append(
@@ -651,6 +674,12 @@ class PDFReportView(ActiveUserRequiredMixin, HelpResponse, View):
                 custom_styles["small"],
             )
         )
+        elements.append(Spacer(1, 30))
+        elements.append(
+            Paragraph(
+                f"Created By {self.request.user.username}", custom_styles["small"]
+            )
+        )
 
         doc.build(elements)
         pdf = buffer.getvalue()
@@ -661,6 +690,7 @@ class PDFReportView(ActiveUserRequiredMixin, HelpResponse, View):
 class PDFReportDownloadView(PDFReportView):
     def get(self, request, *args, **kwargs):
         user = request.user
+        logger.info(f"User {user.username} initiated a report download.")
         pdf = self.generate_pdf()
         response = HttpResponse(content_type="application/pdf")
         response["Content-Disposition"] = (
@@ -668,6 +698,7 @@ class PDFReportDownloadView(PDFReportView):
         )
         response.write(pdf)
         log_user_activity(request, user, "assessment report downloaded")
+        logger.info(f"User {user.username} successfully downloaded the report.")
         return response
 
 
@@ -677,6 +708,7 @@ pdfreportdownload = PDFReportDownloadView.as_view()
 class PDFReportPrintView(PDFReportView):
     def get(self, request, *args, **kwargs):
         user = request.user
+        logger.info(f"User {user.username} initiated a report print.")
         pdf = self.generate_pdf()
         response = HttpResponse(content_type="application/pdf")
         response["Content-Disposition"] = (
@@ -684,6 +716,7 @@ class PDFReportPrintView(PDFReportView):
         )
         response.write(pdf)
         log_user_activity(request, user, "assessment report printed")
+        logger.info(f"User {user.username} successfully printed the report.")
         return response
 
 
@@ -691,6 +724,7 @@ pdfreportprint = PDFReportPrintView.as_view()
 
 
 class PendingResultView(ActiveUserRequiredMixin, FilterView):
+    require_non_staff = True
     filterset_class = QuestionnaireResponseFilter
     model = QuestionnaireResponse
     template_name = "patients/pending-results.html"
@@ -700,7 +734,7 @@ class PendingResultView(ActiveUserRequiredMixin, FilterView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        return queryset.filter(state=STATE.IN_PROGRESS)
+        return queryset.filter(state=STATE.IN_PROGRESS, user=self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -708,6 +742,10 @@ class PendingResultView(ActiveUserRequiredMixin, FilterView):
         log_user_activity(
             self.request, self.request.user, "viewed uncompleted assessment"
         )
+        logger.info(
+            f"User {self.request.user.username} viewed uncompleted assessments."
+        )
+
         return context
 
 
@@ -715,6 +753,8 @@ pending_result = PendingResultView.as_view()
 
 
 class PendingResultDeleteView(ActiveUserRequiredMixin, View):
+    require_non_staff = True
+
     def post(self, request, *args, **kwargs):
         try:
             result_id = request.POST.get("result_id")
@@ -726,6 +766,9 @@ class PendingResultDeleteView(ActiveUserRequiredMixin, View):
                 {"success": True, "message": "Result deleted successfully."}
             )
         except Exception as e:
+            logger.error(
+                f"User {request.user.username} failed to delete result {result_id}. Error: {str(e)}"
+            )
             messages.error(request, "Unable to delete result.")
             return JsonResponse(
                 {"success": False, "message": "Resulte unable to delete!"}
@@ -736,6 +779,7 @@ pending_result_delete = PendingResultDeleteView.as_view()
 
 
 class PredictionResultView(ActiveUserRequiredMixin, FilterView):
+    allow_both = True
     filterset_class = PredictionResultFilter
     model = PredictionResult
     template_name = "patients/result-histores.html"
@@ -751,6 +795,8 @@ class PredictionResultView(ActiveUserRequiredMixin, FilterView):
         context = super().get_context_data(**kwargs)
         context["title_root"] = "Prediction Results"
         log_user_activity(self.request, self.request.user, "viewed all reports")
+        logger.info(f"User {self.request.user.username} viewed all reports.")
+
         return context
 
 
@@ -758,6 +804,8 @@ result_hostores = PredictionResultView.as_view()
 
 
 class PredictionResultDeleteView(ActiveUserRequiredMixin, View):
+    require_non_staff = True
+
     def post(self, request, *args, **kwargs):
         try:
             result_id = request.POST.get("result_id")
@@ -772,6 +820,9 @@ class PredictionResultDeleteView(ActiveUserRequiredMixin, View):
                 {"success": True, "message": "Result deleted successfully."}
             )
         except Exception as e:
+            logger.error(
+                f"User {request.user.username} failed to delete result {result_id}. Error: {str(e)}"
+            )
             messages.error(request, "Unable to delete result.")
             return JsonResponse(
                 {"success": False, "message": "Resulte unable to delete!"}
@@ -782,18 +833,21 @@ resultdelete_view = PredictionResultDeleteView.as_view()
 
 
 class FeedbackView(ActiveUserRequiredMixin, View):
+    require_non_staff = True
 
     def post(self, request, *args, **kwargs):
         form = FeedbackForm(request.POST)
         if form.is_valid():
             feedback = form.save(commit=False)
-            feedback.user = request.user
             feedback.save()
             log_user_activity(request, request.user, "provided feedback")
             return JsonResponse(
                 {"success": True, "message": "Thank you for your feedback!"}
             )
         else:
+            logger.error(
+                f"User {request.user.username} failed to submit feedback. Errors: {form.errors}"
+            )
             return JsonResponse({"success": False, "errors": form.errors})
 
 
@@ -885,3 +939,83 @@ class HomeView(TemplateView):
 
 
 homeview = HomeView.as_view()
+
+
+class Error500View(TemplateView):
+    template_name = "errors/500.html"
+    extra_context = {"error_code": 500, "title_root": "Internal Server Error"}
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["request_path"] = self.request.path
+        context["user"] = self.request.user
+        return context
+
+    def dispatch(self, request, *args, **kwargs):
+        user = request.user if request.user.is_authenticated else None
+        log_user_activity(request, user, "500 Internal Server Error encountered")
+        logger.error(f"500 error at {request.path}")
+        return super().dispatch(request, *args, **kwargs)
+
+
+error500view = Error500View.as_view()
+
+
+class Error403View(TemplateView):
+    template_name = "errors/403.html"
+    extra_context = {"error_code": 403, "title_root": "Forbidden"}
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["request_path"] = self.request.path
+        context["user"] = self.request.user
+        return context
+
+    def dispatch(self, request, *args, **kwargs):
+        user = request.user if request.user.is_authenticated else None
+        log_user_activity(request, user, "403 Forbidden error encountered")
+        logger.warning(f"403 Forbidden error at {request.path}")
+        return super().dispatch(request, *args, **kwargs)
+
+
+error403view = Error403View.as_view()
+
+
+class Error404View(TemplateView):
+    template_name = "errors/404.html"
+    extra_context = {"error_code": 404, "title_root": "Page Not Found"}
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["request_path"] = self.request.path
+        context["user"] = self.request.user
+        return context
+
+    def dispatch(self, request, *args, **kwargs):
+        user = request.user if request.user.is_authenticated else None
+        log_user_activity(request, user, "404 Not Found error encountered")
+        logger.info(f"404 Not Found error at {request.path}")
+        return super().dispatch(request, *args, **kwargs)
+
+
+error404view = Error404View.as_view()
+
+
+class Error400View(TemplateView):
+    template_name = "errors/400.html"
+    extra_context = {"error_code": 400, "title_root": "Bad Request"}
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["request_path"] = self.request.path
+        context["user"] = self.request.user
+        return context
+
+    def dispatch(self, request, *args, **kwargs):
+        user = request.user if request.user.is_authenticated else None
+        log_user_activity(request, user, "400 Bad Request error encountered")
+        logger.warning(f"400 Bad Request error at {request.path}")
+        return super().dispatch(request, *args, **kwargs)
+
+
+error400view = Error400View.as_view()

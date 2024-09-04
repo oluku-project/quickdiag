@@ -6,32 +6,19 @@
         </div>
     </div>
     <div class="row">
-        <div class="col-md-4">
-            <div class="box">
-                <div class="box-body">
-                    <h5 class="box-title" >Mary Johnson</h5>
-                    <p class="text-muted">"After taking the assessment, I followed the recommended screenings and caught my cancer early. The early detection saved my life."</p>
-                    <div class="fs-5">Age: 45 | Risk Level: High</div>
+        
+        {% for item in testimonials %}
+            <div class="col-md-4">
+                <div class="box">
+                    <div class="box-body">
+                        <h5 class="box-title" >{{item.name}}</h5>
+                        <p class="text-muted">"{{item.message}}"</p>
+                        <div class="fs-5">Age: {{item.age}} | Risk Level: {{item.risk_level}}</div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="box">
-                <div class="box-body">
-                    <h5 class="box-title">Linda Smith</h5>
-                    <p class="text-muted">"The personalized advice helped me understand my risk factors and take proactive steps to improve my health."</p>
-                    <div class="fs-5">Age: 38 | Risk Level: Medium</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="box">
-                <div class="box-body">
-                    <h5 class="box-title">Jane Doe</h5>
-                    <p class="text-muted">"I found the resources and support links extremely helpful. It gave me the confidence to get the necessary screenings."</p>
-                    <div class="fs-5">Age: 50 | Risk Level: Low</div>
-                </div>
-            </div>
-        </div>
+        {% endfor %}
+            
+        
     </div>
 </section>

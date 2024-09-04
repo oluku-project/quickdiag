@@ -37,7 +37,7 @@ class QuestionnaireResponse(models.Model):
         if prediction_result:
             return prediction_result.risk_score
         return 0.00
-    
+
     @property
     def result(self):
         # Check if there is any PredictionResult associated with this QuestionnaireResponse
@@ -101,9 +101,9 @@ class PredictionResult(models.Model):
 
     def get_risk_level(self):
         score = self.risk_score
-        if score < 43:
+        if score < 33:
             risk_level = RISK_LEVEL[0]
-        elif score < 79:
+        elif score < 66:
             risk_level = RISK_LEVEL[1]
         else:
             risk_level = RISK_LEVEL[2]
@@ -115,13 +115,24 @@ class PredictionResult(models.Model):
 
 
 class Feedback(models.Model):
-    user = models.ForeignKey("accounts.account", on_delete=models.CASCADE)
+    result = models.ForeignKey(
+        "patients.predictionresult", on_delete=models.SET_NULL, null=True, blank=True
+    )
     rating = models.IntegerField(choices=RATE_CHOICES)
     message = models.TextField()
     submitted_at = models.DateTimeField(db_default=Now())
+    show = models.BooleanField(default=False)
 
-    def __str__(self):
-        return f"Feedback from {self.user.full_name()} at {self.submitted_at}"
+    def save(self, *args, **kwargs):
+        if self.show:
+            # Count the current number of Feedbacks marked as show=True
+            count = Feedback.objects.filter(show=True).count()
+            # If there are already 3, raise an error or set show=False
+            if count >= 3 and not self.pk:
+                raise ValueError(
+                    "Cannot have more than 3 feedback items marked to show."
+                )
+        super().save(*args, **kwargs)
 
 
 class Contact(models.Model):

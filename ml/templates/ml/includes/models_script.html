@@ -1,0 +1,63 @@
+<script>
+  let modelIdToDelete = null;
+  function confirmDelete(modelId) {
+    modelIdToDelete = modelId
+  }
+  function populateModelModal(data) {
+    const modalContent = `
+      <h4 class="fw-bold">${data.name}</h4>
+      <div class="row mb-3">
+        <div class="col-md-6 col-12">
+          <p class="text-muted mb-0">${data.model_type}</p>
+        </div>
+        <div class="col-md-6 col-12">
+          <small class="text-muted">Trained on: ${data.date_trained}</small>
+        </div>
+      </div>
+      <hr />
+      <div class="row mb-3">
+        <div class="col-md-6 col-12">
+          <h5 class="fw-bold">Version:</h5>
+          <p>V${data.version}</p>
+        </div>
+        <div class="col-md-6 col-12">
+          <h5 class="fw-bold">Accuracy:</h5>
+          <p>${data.accuracy}</p>
+        </div>
+        <div class="col-md-6 col-12">
+          <h5 class="fw-bold">Precision:</h5>
+          <p>${data.precision}</p>
+        </div>
+        <div class="col-md-6 col-12">
+          <h5 class="fw-bold">Recall:</h5>
+          <p>${data.recall}</p>
+        </div>
+        <div class="col-md-6 col-12">
+          <h5 class="fw-bold">F1 Score:</h5>
+          <p>${data.f1_score}</p>
+        </div>
+        <div class="col-md-6 col-12">
+          <h5 class="fw-bold">Is Default:</h5>
+          <p>${data.is_default}</p>
+        </div>
+      </div>
+    `;
+    $('#modelContainer').html(modalContent)
+  }
+  function openModal(modelId) {
+    url = "{% url 'AdminHub:model_detail' 1 %}".replace('1', modelId);
+    if (modelId) {
+      $.ajax({
+        url: url,
+        method: 'GET',
+        success: function (data) {
+          populateModelModal(data)
+        },
+        error: function (xhr) {
+          $('#modelContainer').html()
+          showToast('Error', 'Model not found', 'error');
+        },
+      });
+    }
+  }
+</script>
