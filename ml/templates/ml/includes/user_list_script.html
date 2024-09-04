@@ -1,0 +1,161 @@
+<script>
+  let userIdToDelete = null;
+  let activateUser = false
+  function confirmDelete(userId,name,activate=false) {
+    $('#deleteModalLabel').text(`Delete User: ${name}`)
+    $('#confirmActivationModalLabel').text(`Confirm Activation Email for ${name}`)
+    $('#sendTo').text(name)
+    userIdToDelete = userId
+    activateUser = activate
+  }
+  function deleteUser() {
+    url1 = "{% url 'AdminHub:user_delete' %}";
+    url2 = "{% url 'AdminHub:send_activation_email' %}";
+    $.ajax({
+      url: activateUser?url2:url,
+      method: 'POST',
+      data: {
+        user_id: userIdToDelete,
+        csrfmiddlewaretoken: '{{ csrf_token }}',
+      },
+      success: function (data) {
+        if (data.success) {
+          if (activateUser) {
+            activateUser=false
+            location.reload();
+          }else{
+            showToast('Success', data.message, 'success');
+          }
+        } else {
+          showToast('Success', data.message, 'success');
+        }
+      },
+      error: function (xhr, status, error) {
+        var jsonResponse = JSON.parse(xhr.responseText);
+        var errors = xhr.responseJSON.errors;
+        showToast('Error', errors, 'error');
+      },
+    });
+  }
+  function userInfo(data) {
+    
+    $('#userInfo').html(`
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <h6><i class="fa fa-id-badge"></i> Full Name</h6>
+                        <p class="text-muted">${data.full_name}</p>
+                        
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-user"></i> Username</h6>
+                        <span class="text-muted">${data.username}</span>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-envelope"></i> Email</h6>
+                        <p class="text-muted">${data.email}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-venus-mars"></i> Gender</h6>
+                        <p class="text-muted">${data.gender}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-globe"></i> Country</h6>
+                        <p class="text-muted">${data.country}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-calendar"></i> Date of Birth</h6>
+                        <p class="text-muted">${data.dob.year}-${data.dob.month}-${data.dob.day}</p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <h6><i class="fa fa-id-card"></i> User ID</h6>
+                        <p class="text-muted">${data.usid}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-calendar-check-o"></i> Date Joined</h6>
+                        <p class="text-muted">${data.dj}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-sign-in"></i> Last Login</h6>
+                        <p class="text-muted">${data.ll}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-shield"></i> Admin Status</h6>
+                        <p class="text-muted">${data.is_admin ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-user-secret"></i> Created By</h6>
+                        <p class="text-muted">${data.created_by}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fa fa-check-square-o"></i> Agreement Accepted</h6>
+                        <p class="text-muted">${data.agree ? 'Yes' : 'No'}</p>
+                    </div>
+                </div>
+            </div>
+`);
+    }
+  function openModal(userId = null, fetch = null) {
+    url = "{% url 'AdminHub:get_user' 1 %}".replace('1', userId);
+    $('#userId').val('');
+    $('#userForm')[0].reset();
+    
+    if (userId) {
+      $.ajax({
+        url: url,
+        method: 'GET',
+        success: function (data) {
+          $('#userModalLabel').text(`Edit User: ${data.username}`);
+          $('#userId').val(data.id);
+           // Update input fields using `name` attribute
+           $('[name="first_name"]').val(data.first_name);
+           $('[name="last_name"]').val(data.last_name);
+           $('[name="email"]').val(data.email);
+            // Update select fields using `name` attribute
+            $('[name="gender"]').val(data.gender).trigger('change');
+            // For date of birth (assuming data.date_of_birth is an object with year, month, and day)
+            $('[name="year"]').val(data.dob.year).trigger('change');
+            $('[name="month"]').val(data.dob.month).trigger('change');
+            $('[name="day"]').val(data.dob.day).trigger('change');
+            if (fetch) {
+              userInfo(data)
+            }
+        },
+        error: function (xhr) {
+          showToast('Error', 'Error fetching user details', 'error');
+        },
+      });
+    } else {
+      $('#userModalLabel').text('Add New User');
+    }
+  }
+  $(document).ready(function () {
+    $('#userForm').on('submit', function (e) {
+      $('#userId').val('');
+      $('#userForm')[0].reset();
+      e.preventDefault();
+      var formData = new FormData(this);
+      var userId = $('#userId').val();
+      url_1 = "{% url 'AdminHub:update_user' 1 %}".replace('1', userId);
+      url_2 = "{% url 'AdminHub:add_user' %}";
+      $.ajax({
+        type: 'POST',
+        url: userId ? url_1 : url_2,
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (response) {
+          location.reload();
+        },
+        error: function (xhr, status, error) {
+        var jsonResponse = JSON.parse(xhr.responseText);
+        var errors = xhr.responseJSON.errors;
+        showToast('Error', errors, 'error');
+
+      },
+      });
+    });
+  });
+</script>
