@@ -19,6 +19,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+
 .Python
 staticfiles
 build/
@@ -94,6 +95,8 @@ celerybeat-schedule
 *.sage.py
 
 # Environments
+plantuml/
+out/
 .venv
 env/
 venv/
@@ -114,7 +117,6 @@ ENV/
 
 *.sqlite3
 *.json
-*.txt
 db.sqlite3
 debug.log
 help/
