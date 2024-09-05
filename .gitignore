@@ -19,6 +19,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+
 .Python
 staticfiles
 build/
@@ -94,7 +95,8 @@ celerybeat-schedule
 *.sage.py
 
 # Environments
-diagrams/
+plantuml/
+out/
 .venv
 env/
 venv/
