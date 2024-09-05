@@ -94,6 +94,7 @@ celerybeat-schedule
 *.sage.py
 
 # Environments
+diagrams/
 .venv
 env/
 venv/
@@ -114,7 +115,6 @@ ENV/
 
 *.sqlite3
 *.json
-*.txt
 db.sqlite3
 debug.log
 help/
