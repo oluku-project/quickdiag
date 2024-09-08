@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 import os
 import environ
+from celery.schedules import crontab
 
 
 env = environ.Env(
@@ -139,6 +140,11 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Optionally, if using Whitenoise for serving static files in production:
 
+# Celery settings for Redis
+CELERY_BROKER_URL = env("REDIS_URL")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_BACKEND = env("REDIS_URL")
 
 # SMTP configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -149,6 +155,11 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
 EMAIL_SUBJECT_PREFIX = env("EMAIL_SUBJECT_PREFIX")
+
+# Security and Middleware settings for production
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = "DENY"
 
 LOGGING = {
     "version": 1,
@@ -191,23 +202,19 @@ LOGOUT_REDIRECT_URL = "auth:login"
 LOGIN_URL = "auth:login"
 LOGOUT_URL = "auth:logout"
 
+CELERY_BEAT_SCHEDULE = {
+    "delete-old-logs-every-day": {
+        "task": "ml.tasks.delete_old_logs",
+        "schedule": crontab(hour=0, minute=0),
+    },
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 """
-DEBUG = env.bool("DEBUG", default=False)
-
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["yourdomain.com"])
-
-
-//////env//////////
-DEBUG=False
-ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
-
-//////End env//////////
-
 
 
 5. Use X_FRAME_OPTIONS and Security Middleware

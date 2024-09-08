@@ -1,3 +1,4 @@
+from pathlib import Path
 from django.conf import settings
 
 from ml.utils import log_user_activity
@@ -178,6 +179,7 @@ class TrainedModelMiddleware:
 
     def __call__(self, request):
         # Try to retrieve the default trained model
+        model_dir = Path(f"{settings.STATICFILES_DIRS[0]}/model")
         default_model = {
             "name": "model",
             "version": "0.9",
@@ -186,9 +188,9 @@ class TrainedModelMiddleware:
             "precision": 0.97561,
             "recall": 0.930233,
             "f1_score": 0.952381,
-            "training_data_path": "/home/coder/Downloads/breastAI/static/model/data.csv",
-            "model_file_path": "/home/coder/Downloads/breastAI/static/model/model.pkl",
-            "scaler_file_path": "/home/coder/Downloads/breastAI/static/model/scaler.pkl",
+            "training_data_path": model_dir / f"data.csv",
+            "model_file_path": model_dir / f"model.pkl",
+            "scaler_file_path": model_dir / f"scaler.pkl",
             "date_trained": "26/08/2024",
         }
         try:

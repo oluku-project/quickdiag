@@ -244,3 +244,11 @@ Feel free to reach out for any questions or suggestions:
 
 - **Email**: info.zilatech@gmail.com
 - **GitHub**: [oluku-project](https://github.com/oluku-project/quickdiag.git)
+
+## **Project Repository**
+
+You can access the full project source code and documentation on GitHub:
+
+[QuickDiag - Breast Cancer Diagnosis Prediction System](https://github.com/oluku-project/quickdiag.git)
+
+Feel free to clone the repository, contribute to the project, or explore the features in more detail.

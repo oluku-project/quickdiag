@@ -367,7 +367,6 @@ class PredictionView(ActiveUserRequiredMixin, HelpResponse, DetailView):
 
         # Store data in session
         self.storeDataInSession(response_instance, url_name)
-        risk_score = risk_score if risk_score > 1 else risk_score/100
 
         context.update(
             {
