@@ -17,10 +17,12 @@ from .views import (
     RecordManagementView,
     SendActivationEmailView,
     SystemSettingsView,
+    TaskStatusView,
     TestimonialDeleteView,
     TestimonialDetailView,
     TestimonialListView,
     ToggleFeedbackShowView,
+    TrainModelView,
     TrainedModelDetailView,
     TrainedModelListView,
     UserDeleteView,
@@ -92,7 +94,9 @@ urlpatterns = [
         ToggleFeedbackShowView.as_view(),
         name="toggle-feedback-show",
     ),
-    path("model/", TrainedModelListView.as_view(), name="model_list"),
+    path("models/", TrainedModelListView.as_view(), name="model_list"),
+    path("train-model/", TrainModelView.as_view(), name="train_model"),
+    path("task-status/<str:task_id>/", TaskStatusView.as_view(), name="task_status"),
     path(
         "model-detail/<str:pk>/", TrainedModelDetailView.as_view(), name="model_detail"
     ),

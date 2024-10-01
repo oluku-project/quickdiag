@@ -1,91 +1,89 @@
 from celery import shared_task
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
 from django.utils import timezone
-from pathlib import Path
-import pickle5 as pickle
-from .models import ActivityLog, TrainedModel
-from django.conf import settings
-import pandas as pd
+
+from patients.utils import HelpResponse
+from .models import ActivityLog
+import datetime
+from time import sleep
+from ml.management.commands.train_model import Command as TrainCommand
 
 
-# Import your activity log cleanup task
 @shared_task
 def delete_old_logs():
-    retention_period = timezone.now() - timezone.timedelta(days=90)
+    retention_period = timezone.now() - datetime.timedelta(days=90)
     ActivityLog.objects.filter(timestamp__lt=retention_period).delete()
 
 
-# Task to train the model
-@shared_task
-def train_model_task(model_type="RandomForest"):
-    # Load data
-    data = pd.read_csv(f"{settings.STATICFILES_DIRS[0]}/model/data.csv")
-    data = data.drop(["Unnamed: 32", "id"], axis=1)
-    data["diagnosis"] = data["diagnosis"].map({"M": 1, "B": 0})
+@shared_task(bind=True)
+def train_model_task(self, model_type):
+    """
+    Celery task to train the model asynchronously with progress updates.
+    """
+    try:
+        total_steps = 5  # Customize this based on the number of stages in training
 
-    X = data.drop("diagnosis", axis=1)
-    y = data["diagnosis"]
+        # Step 1: Load Data
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 1, "total": total_steps, "status": "Loading data..."},
+        )
+        sleep(1)  # Simulate some delay for this step (for demo purposes)
 
-    # Split dataset
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+        # Step 2: Train model
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 2, "total": total_steps, "status": "Training model..."},
+        )
+        train_command = TrainCommand()
+        train_command.handle(model_type=model_type)
 
-    # Scaling data
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+        # Step 3: Validate model
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 3, "total": total_steps, "status": "Validating model..."},
+        )
+        sleep(1)  # Simulate model validation
 
-    # Select model type
-    if model_type == "NaiveBayes":
-        model = GaussianNB()
-    elif model_type == "SVM":
-        model = SVC(probability=True)
-    else:
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        # Step 4: Save model
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 4, "total": total_steps, "status": "Saving model..."},
+        )
+        sleep(1)  # Simulate model saving
 
-    # Train model
-    model.fit(X_train_scaled, y_train)
+        # Step 5: Completion
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": 5, "total": total_steps, "status": "Finalizing..."},
+        )
+        sleep(1)
 
-    # Evaluate model
-    y_pred = model.predict(X_test_scaled)
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
+        # Task completion
+        return {
+            "status": "success",
+            "message": f"Model {model_type} trained successfully.",
+        }
 
-    # Save model and scaler
-    version = str(TrainedModel.objects.filter(name=model_type).count() + 1)
-    model_dir = Path(f"{settings.STATICFILES_DIRS[0]}/model")
-    model_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        self.update_state(
+            state="FAILURE", meta={"current": 0, "total": total_steps, "status": str(e)}
+        )
+        raise
 
-    model_path = model_dir / f"{model_type}_v{version}.pkl"
-    scaler_path = model_dir / f"{model_type}_scaler_v{version}.pkl"
 
-    with open(model_path, "wb") as model_file:
-        pickle.dump(model, model_file)
-    with open(scaler_path, "wb") as scaler_file:
-        pickle.dump(scaler, scaler_file)
+"""
+python manage.py collectstatic --no-post-process
 
-    # Set previous models to non-default
-    TrainedModel.objects.filter(is_default=True).update(is_default=False)
+sudo service redis-server start
+sudo systemctl status redis
 
-    # Save the trained model to the database
-    TrainedModel.objects.create(
-        name=model_type,
-        version=version,
-        model_type=model_type,
-        accuracy=round(accuracy, 6),
-        precision=round(precision, 6),
-        recall=round(recall, 6),
-        f1_score=round(f1, 6),
-        training_data_path=str(model_dir / "data.csv"),
-        model_file_path=str(model_path),
-        scaler_file_path=str(scaler_path),
-        is_default=True,
-    )
+
+celery -A PaulVideoPlatform worker --loglevel=info
+
+gunicorn --workers 3 --bind 127.0.0.1:8000 PaulVideoPlatform.wsgi:application  OR
+
+gunicorn -c gunicorn_config.py PaulVideoPlatform.wsgi:application
+
+python manage.py runserver --insecure
+
+"""
