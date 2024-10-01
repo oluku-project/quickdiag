@@ -1,4 +1,67 @@
 <script>
+  $(document).ready(function() {
+            $('#trainModelForm').on('submit', function(e) {
+                e.preventDefault();
+                const modelType = $('#modelType').val();
+
+                $.ajax({
+                    url: $(this).attr('action'),
+                    method: 'POST',
+                    data: {
+                        'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val(),
+                        'model_type': modelType
+                    },
+                    success: function(response) {
+                        const taskId = response.task_id;
+                        console.log("Task ID:", taskId);
+                        
+                        // Start polling the progress
+                        pollProgress(taskId);
+                    },
+                    error: function(error) {
+                        alert('Error initiating model training.');
+                    }
+                });
+            });
+
+            function pollProgress(taskId) {
+                const progressInterval = setInterval(function() {
+                    $.ajax({
+                        url: `/AdminHub/task-status/${taskId}/`,  // Poll task status using task ID
+                        method: 'GET',
+                        success: function(response) {
+                            if (response.state === "PROGRESS") {
+                                let percentage = (response.progress / response.total) * 100;
+                                // Update the progress bar
+                                $('#progressBar').css('width', percentage + '%').text(percentage.toFixed(2) + '%');
+                            }
+                            
+                            if (response.state === 'SUCCESS' || response.state === 'FAILURE') {
+                                clearInterval(progressInterval);  // Stop polling when task is done
+                                if (response.state === 'SUCCESS') {
+                                    $('#progressBar').css('width', '100%').text('100%');
+                                    let success = true;
+                                     showToast("Success", "Model training completed successfully!", "success");
+                                     if(success){
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 3500);
+                                     }
+                                } else {
+                                    showToast("Error", "Model training failed!", "error");
+                                    
+                                }
+                            }
+                        },
+                        error: function() {
+                            showToast("Error", "Error fetching task status.", "error");
+                            clearInterval(progressInterval);  // Stop polling on error
+                        }
+                    });
+                }, 2000);  // Poll every 2 seconds
+            }
+        });
+
   let modelIdToDelete = null;
   function confirmDelete(modelId) {
     modelIdToDelete = modelId
