@@ -8,6 +8,7 @@ from accounts.forms import UserCreateForm
 from accounts.mixins import ActiveUserRequiredMixin
 from accounts.models import Account
 from accounts.templatetags.custom_filters import calculate_age
+from ml.tasks import train_model_task
 from ml.utils import DecimalEncoder, log_user_activity
 from patients.filters import (
     ActivityLogFilter,
@@ -2314,7 +2315,9 @@ class TestimonialDetailView(ActiveUserRequiredMixin, View):
             rating_text = dict(RATE_CHOICES).get(item.rating, "Unknown Rating")
             data = {
                 "user": (
-                    item.result.user.full_name().title() if item.result.user else "Anonymous"
+                    item.result.user.full_name().title()
+                    if item.result.user
+                    else "Anonymous"
                 ),
                 "email": item.result.user.email if item.result.user else "N/A",
                 "subject": rating_text,
@@ -2373,3 +2376,71 @@ class ToggleFeedbackShowView(ActiveUserRequiredMixin, View):
                 f"An unexpected error occurred while toggling show status for Feedback ID {pk}: {e}"
             )
             return JsonResponse({"error": "An unexpected error occurred."}, status=500)
+
+
+class TrainModelView(ActiveUserRequiredMixin, View):
+    require_staff = True
+
+    def post(self, request, *args, **kwargs):
+
+        model_type = request.POST.get("model_type", "RandomForest")
+
+        # Trigger the Celery task asynchronously
+        task = train_model_task.delay(model_type)
+
+        # Return a response containing the task ID
+        return JsonResponse(
+            {
+                "status": "success",
+                "message": "Model training initiated successfully.",
+                "task_id": task.id, 
+            }
+        )
+
+
+from django.http import JsonResponse
+from celery.result import AsyncResult
+from django.views import View
+
+
+class TaskStatusView(View):
+    """
+    A class-based view to handle the progress of Celery tasks.
+    """
+
+    def get(self, request, *args, **kwargs):
+        task_id = kwargs.get("task_id")  # Get the task_id from the URL
+        task_result = AsyncResult(task_id)
+
+        if task_result.state == "PENDING":
+            response = {
+                "state": task_result.state,
+                "progress": 0,
+                "status": "Pending...",
+            }
+        elif task_result.state == "PROGRESS":
+            response = {
+                "state": task_result.state,
+                "progress": task_result.info.get(
+                    "current", 0
+                ),  # Fetch current progress
+                "total": task_result.info.get("total", 100),  # Fetch total steps
+                "status": task_result.info.get("status", ""),
+            }
+        elif task_result.state == "SUCCESS":
+            response = {
+                "state": task_result.state,
+                "progress": 100,
+                "status": "Task completed",
+                "result": task_result.info,  # Send the final result
+            }
+        else:  # FAILURE
+            response = {
+                "state": task_result.state,
+                "progress": 100,
+                "status": str(task_result.info),  # Send the error message
+            }
+
+        return JsonResponse(response)
+
+
