@@ -9,7 +9,7 @@ env = environ.Env(
     DEBUG=(bool, False),
 )
 BASE_DIR = Path(__file__).resolve().parent.parent
-env.read_env(str(BASE_DIR / "env" / ".env"))
+env.read_env(str(BASE_DIR / ".env"))
 
 
 LOG_DIR = BASE_DIR / "logs"
@@ -18,8 +18,7 @@ if not os.path.exists(LOG_DIR):
 
 
 SECRET_KEY = env("SECRET_KEY")
-DEBUG = env("DEBUG", default=False)
-
+DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
 
 
@@ -32,9 +31,14 @@ DEFAULT_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 ]
+
 THIRD_PARTY_APPS = [
+    "whitenoise.runserver_nostatic",
     "active_link",
+    "django_celery_results",  # For storing Celery task results in Django DB
+    "django_celery_beat",  # For managing Celery periodic tasks in Django admin
 ]
+
 LOCAL_APPS = [
     "accounts",
     "patients",
@@ -46,6 +50,7 @@ INSTALLED_APPS = DEFAULT_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -133,6 +138,8 @@ AUTH_USER_MODEL = "accounts.Account"
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles_build" / "static"
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
+# STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# WHITENOISE_MANIFEST_STRICT = False
 
 # Media files (Uploaded files)
 MEDIA_URL = "/media/"
@@ -140,11 +147,14 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Optionally, if using Whitenoise for serving static files in production:
 
-# Celery settings for Redis
-CELERY_BROKER_URL = env("REDIS_URL")
+# Celery settings
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+# CELERY_RESULT_BACKEND = "django-db"  # Storing results in Django's database
+CELERY_CACHE_BACKEND = "django-cache"  # Optional caching of results
+
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_BACKEND = env("REDIS_URL")
+CELERY_RESULT_BACKEND = env("CELERY_BROKER_URL")
 
 # SMTP configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -160,6 +170,7 @@ EMAIL_SUBJECT_PREFIX = env("EMAIL_SUBJECT_PREFIX")
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"
+
 
 LOGGING = {
     "version": 1,
@@ -213,15 +224,3 @@ CELERY_BEAT_SCHEDULE = {
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-"""
-
-
-5. Use X_FRAME_OPTIONS and Security Middleware
-If you are serving these custom pages in a production environment, consider security headers:
-X_FRAME_OPTIONS = "DENY"  # Protect against clickjacking
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_BROWSER_XSS_FILTER = True
-
-
-"""
