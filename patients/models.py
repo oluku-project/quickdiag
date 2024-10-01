@@ -91,8 +91,6 @@ class PredictionResult(models.Model):
 
     deleted = models.BooleanField(default=False)
 
-    objects = PredictionResultManager()
-
     def benign(self):
         return f"{self.probability_benign * 100:.2f}"
 
