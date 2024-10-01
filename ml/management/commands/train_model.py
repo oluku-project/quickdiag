@@ -1,8 +1,7 @@
 from django.core.management.base import BaseCommand
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 import pandas as pd
 import pickle5 as pickle
-from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -12,7 +11,6 @@ from PaulVideoPlatform import settings
 from pathlib import Path
 from ml.models import TrainedModel
 import os
-
 from patients.utils import HelpResponse
 
 
@@ -37,6 +35,8 @@ def create_model(data, model_type):
         model = SVC(kernel="linear", probability=True, random_state=42)
     elif model_type == "NaiveBayes":
         model = GaussianNB()
+    else:
+        raise ValueError(f"Model type {model_type} not recognized")
 
     # Train the model
     model.fit(X_train_scaled, y_train)
@@ -65,47 +65,77 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
-        model_type = kwargs["model_type"]  # Get the model type from the command line
+        model_type = kwargs.get(
+            "model_type", "RandomForest"
+        )  # Get the model type from the command line
 
-        # Clean the data
-        data = HelpResponse().get_clean_data()
+        # Load and clean the data
+        try:
+            data = HelpResponse().get_clean_data()
+        except FileNotFoundError:
+            self.stdout.write(
+                self.style.ERROR("Data file not found. Ensure it exists.")
+            )
+            return
+
+        # Ensure data is not empty
+        if data.empty:
+            self.stdout.write(self.style.ERROR("Loaded dataset is empty."))
+            return
 
         # Create the model and get metrics
-        model, scaler, accuracy, precision, recall, f1 = create_model(data, model_type)
+        try:
+            model, scaler, accuracy, precision, recall, f1 = create_model(
+                data, model_type
+            )
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error training the model: {e}"))
+            return
 
         # Create dynamic model name and version
         model_name = f"breast_cancer_model_{model_type.lower()}"
         version = str(TrainedModel.objects.filter(name=model_name).count() + 1)
 
         # Paths for saving the model and scaler
-        model_dir = Path(f"{settings.STATICFILES_DIRS[0]}/model")
+        model_dir = Path(f"{settings.BASE_DIR}/static/model")
         model_dir.mkdir(parents=True, exist_ok=True)
         model_path = model_dir / f"{model_name}_v{version}.pkl"
         scaler_path = model_dir / f"{model_name}_scaler_v{version}.pkl"
 
         # Save the model and scaler
-        with open(model_path, "wb") as model_file:
-            pickle.dump(model, model_file)
-        with open(scaler_path, "wb") as scaler_file:
-            pickle.dump(scaler, scaler_file)
+        try:
+            with open(model_path, "wb") as model_file:
+                pickle.dump(model, model_file)
+            with open(scaler_path, "wb") as scaler_file:
+                pickle.dump(scaler, scaler_file)
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error saving model files: {e}"))
+            return
 
         # Set all previous models to non-default
         TrainedModel.objects.filter(is_default=True).update(is_default=False)
 
         # Create a record in the database
-        TrainedModel.objects.create(
-            name=model_name,
-            version=version,
-            model_type=model_type,
-            accuracy=round(accuracy, 6),
-            precision=round(precision, 6),
-            recall=round(recall, 6),
-            f1_score=round(f1, 6),
-            training_data_path=model_dir / f"data.csv",
-            model_file_path=str(model_path),
-            scaler_file_path=str(scaler_path),
-            is_default=True,
-        )
+        try:
+            TrainedModel.objects.create(
+                name=model_name,
+                version=version,
+                model_type=model_type,
+                accuracy=round(accuracy, 6),
+                precision=round(precision, 6),
+                recall=round(recall, 6),
+                f1_score=round(f1, 6),
+                training_data_path=model_dir / "data.csv",
+                model_file_path=str(model_path),
+                scaler_file_path=str(scaler_path),
+                is_default=True,
+            )
+        except Exception as e:
+            self.stdout.write(
+                self.style.ERROR(f"Error saving model record to database: {e}")
+            )
+            return
+
         # Log the model details
         self.stdout.write(
             "\n_______________TRAINING BREAST CANCER DATASET MODEL__________________"
