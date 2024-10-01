@@ -25,3 +25,41 @@
     </div>
   </div>
 </div>
+
+<!-- Modal for Training Model -->
+<div class="modal fade" id="trainModelModal" tabindex="-1" role="dialog" aria-labelledby="trainModelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="trainModelModalLabel">Train New Model</h5>
+                <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="trainModelForm" method="POST" action="{% url 'AdminHub:train_model' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="modelType">Model Type</label>
+                        <select class="form-control" id="modelType" name="model_type" required>
+                            <option value="RandomForest">Random Forest</option>
+                            <option value="NaiveBayes">Naive Bayes</option>
+                            <option value="SVM">Support Vector Machines (SVM)</option>
+                        </select>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="progress mt-4" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" style="width: 0%;" role="progressbar" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Train Model</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
